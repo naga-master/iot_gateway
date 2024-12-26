@@ -1,4 +1,5 @@
 .vscode
+.venv
 .pytest_cache
 /build
 /gateway
