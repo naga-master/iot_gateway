@@ -1,7 +1,0 @@
-fastapi
-hypercorn
-pyyaml
-aiomqtt
-smbus2
-aiosqlite
-pydantic

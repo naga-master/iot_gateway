@@ -3,3 +3,6 @@
 /build
 /gateway
 iot_gateway.log
+/src/iot_gateway.egg-info
+/src/tests/pytest_cache
+/src/tests/__pycache__
