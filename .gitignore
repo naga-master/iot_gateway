@@ -1,5 +1,5 @@
 .vscode
 .pytest_cache
-build
-gateway
+/build
+/gateway
 iot_gateway.log
