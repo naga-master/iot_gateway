@@ -1,0 +1,2 @@
+[console_scripts]
+iot_gateway = iot_gateway.__main__:main

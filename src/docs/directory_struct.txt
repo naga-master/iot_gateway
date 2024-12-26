@@ -1,0 +1,86 @@
+Root Directory Files:
+
+
+setup.py: Package installation configuration
+requirements.txt: Project dependencies
+pyproject.toml: Modern Python project metadata and build configuration
+.env.example: Template for environment variables
+docker-compose.yml: Container orchestration configuration
+
+
+src/iot_gateway/:
+
+a) adapters/:
+
+base.py: Abstract base class for all protocol adapters
+Separate files for each protocol implementation (bluetooth.py, wifi.py, etc.)
+Each adapter implements the interface defined in base.py
+
+b) core/:
+
+event_manager.py: Central event handling system
+device_manager.py: Device lifecycle management
+protocol_manager.py: Protocol coordination
+config_manager.py: Configuration management
+
+c) processing/:
+
+data_processor.py: Raw data processing logic
+business_processor.py: Business rules implementation
+transformation_rules.py: Data transformation definitions
+
+d) storage/:
+
+database.py: Database interactions
+cache.py: Caching implementation
+sync_manager.py: Offline data synchronization
+
+e) models/:
+
+Data models using Pydantic or similar
+Defines structure for devices, events, and messages
+
+f) utils/:
+
+Common utilities and helper functions
+Logging configuration
+Validation helpers
+
+g) api/:
+
+FastAPI/Flask routes and endpoints
+API documentation
+Request/response handlers
+
+
+config/:
+
+
+YAML configuration files for different environments
+Device configurations
+Protocol settings
+Processing rules
+
+
+scripts/:
+
+
+Installation and setup scripts
+Database migration scripts
+Development utilities
+
+
+tests/:
+
+
+Organized to mirror the src/ directory structure
+Includes unit tests, integration tests, and fixtures
+Test configuration and utilities
+
+
+docs/:
+
+
+API documentation
+Setup instructions
+Contributing guidelines

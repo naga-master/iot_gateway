@@ -1,0 +1,88 @@
+iot_gateway/
+│
+├── README.md                 # Project documentation
+├── requirements.txt          # Project dependencies
+├── setup.py                 # Package installation script
+├── pyproject.toml          # Project metadata and build system requirements
+├── .env.example            # Example environment variables
+├── docker-compose.yml      # Docker composition for development/deployment
+│
+├── src/                    # Source code directory
+│   └── iot_gateway/       # Main package directory
+│       ├── __init__.py
+│       │
+│       ├── adapters/      # Protocol adapters implementation
+│       │   ├── __init__.py
+│       │   ├── base.py    # Base adapter class
+│       │   ├── bluetooth.py
+│       │   ├── wifi.py
+│       │   ├── mqtt.py
+│       │   ├── i2c.py
+│       │   ├── spi.py
+│       │   ├── uart.py
+│       │   ├── gpio.py
+│       │   └── rest.py
+│       ├── sensors/      # new sensors implementation
+│       │   ├── __init__.py
+│       │   ├── temperature.py    # sensors class
+│       │
+│       ├── core/          # Core system components
+│       │   ├── __init__.py
+│       │   ├── event_manager.py
+│       │   ├── device_manager.py
+│       │   ├── protocol_manager.py
+│       │   └── config_manager.py
+│       │
+│       ├── processing/    # Data processing and business logic
+│       │   ├── __init__.py
+│       │   ├── data_processor.py
+│       │   ├── business_processor.py
+│       │   └── transformation_rules.py
+│       │
+│       ├── storage/       # Data storage implementations
+│       │   ├── __init__.py
+│       │   ├── database.py
+│       │   ├── cache.py
+│       │   └── sync_manager.py
+│       │
+│       ├── models/        # Data models and schemas
+│       │   ├── __init__.py
+│       │   ├── device.py
+│       │   ├── event.py
+│       │   └── message.py
+│       │
+│       ├── utils/         # Utility functions and helpers
+│       │   ├── __init__.py
+│       │   ├── logging.py
+│       │   ├── validation.py
+│       │   └── helpers.py
+│       │
+│       └── api/           # API endpoints
+│           ├── __init__.py
+│           ├── routes.py
+│           └── endpoints/
+│               ├── __init__.py
+│               ├── devices.py
+│               └── metrics.py
+│
+├── config/               # Configuration files
+│   ├── default.yml
+│   ├── development.yml
+│   └── production.yml
+│
+├── scripts/             # Utility scripts
+│   ├── install.sh
+│   └── setup_device.sh
+│
+├── tests/              # Test files
+│   ├── __init__.py
+│   ├── conftest.py
+│   ├── test_adapters/
+│   ├── test_core/
+│   ├── test_processing/
+│   └── test_storage/
+│
+└── docs/               # Documentation
+    ├── API.md
+    ├── SETUP.md
+    └── CONTRIBUTING.md
