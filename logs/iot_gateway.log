@@ -8525,3 +8525,66 @@ sqlite3.OperationalError: no such table: temperature_readings
   File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/core.py", line 115, in run
 sqlite3.OperationalError: no such table: temperature_readings
 
+2024-12-26 20:50:09,767 - iot_gateway.core.temperature_monitor - [ERROR] - Error in monitoring loop: Traceback (most recent call last):
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/iot_gateway/core/temperature_monitor.py", line 79, in start_monitoring
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/iot_gateway/storage/database.py", line 34, in store_reading
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/cursor.py", line 48, in execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/cursor.py", line 40, in _execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/core.py", line 132, in _execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/core.py", line 115, in run
+sqlite3.OperationalError: no such table: temperature_readings
+
+2024-12-26 20:50:14,771 - iot_gateway.core.temperature_monitor - [ERROR] - Error in monitoring loop: Traceback (most recent call last):
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/iot_gateway/core/temperature_monitor.py", line 79, in start_monitoring
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/iot_gateway/storage/database.py", line 34, in store_reading
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/cursor.py", line 48, in execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/cursor.py", line 40, in _execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/core.py", line 132, in _execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/core.py", line 115, in run
+sqlite3.OperationalError: no such table: temperature_readings
+
+2024-12-26 20:50:19,773 - iot_gateway.core.temperature_monitor - [ERROR] - Error in monitoring loop: Traceback (most recent call last):
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/iot_gateway/core/temperature_monitor.py", line 79, in start_monitoring
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/iot_gateway/storage/database.py", line 34, in store_reading
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/cursor.py", line 48, in execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/cursor.py", line 40, in _execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/core.py", line 132, in _execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/core.py", line 115, in run
+sqlite3.OperationalError: no such table: temperature_readings
+
+2024-12-26 20:50:24,776 - iot_gateway.core.temperature_monitor - [ERROR] - Error in monitoring loop: Traceback (most recent call last):
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/iot_gateway/core/temperature_monitor.py", line 79, in start_monitoring
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/iot_gateway/storage/database.py", line 34, in store_reading
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/cursor.py", line 48, in execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/cursor.py", line 40, in _execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/core.py", line 132, in _execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/core.py", line 115, in run
+sqlite3.OperationalError: no such table: temperature_readings
+
+2024-12-26 20:50:29,780 - iot_gateway.core.temperature_monitor - [ERROR] - Error in monitoring loop: Traceback (most recent call last):
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/iot_gateway/core/temperature_monitor.py", line 79, in start_monitoring
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/iot_gateway/storage/database.py", line 34, in store_reading
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/cursor.py", line 48, in execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/cursor.py", line 40, in _execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/core.py", line 132, in _execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/core.py", line 115, in run
+sqlite3.OperationalError: no such table: temperature_readings
+
+2024-12-26 20:50:34,782 - iot_gateway.core.temperature_monitor - [ERROR] - Error in monitoring loop: Traceback (most recent call last):
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/iot_gateway/core/temperature_monitor.py", line 79, in start_monitoring
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/iot_gateway/storage/database.py", line 34, in store_reading
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/cursor.py", line 48, in execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/cursor.py", line 40, in _execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/core.py", line 132, in _execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/core.py", line 115, in run
+sqlite3.OperationalError: no such table: temperature_readings
+
+2024-12-26 20:50:39,786 - iot_gateway.core.temperature_monitor - [ERROR] - Error in monitoring loop: Traceback (most recent call last):
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/iot_gateway/core/temperature_monitor.py", line 79, in start_monitoring
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/iot_gateway/storage/database.py", line 34, in store_reading
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/cursor.py", line 48, in execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/cursor.py", line 40, in _execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/core.py", line 132, in _execute
+  File "/Users/ns632@apac.comcast.com/Documents/iot_gateway/gateway/lib/python3.13/site-packages/aiosqlite/core.py", line 115, in run
+sqlite3.OperationalError: no such table: temperature_readings
+
