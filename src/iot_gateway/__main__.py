@@ -59,7 +59,7 @@ class APIServer:
         try:
             self.app = FastAPI(
                 title="IoT Gateway API",
-                description="API for managing IoT devices and temperature monitoring",
+                description="IoT Gateway service managing sensors and communication",
                 version="1.0.0"
             )
             
@@ -135,7 +135,8 @@ class IoTGatewayApp:
             self.temperature_monitor = TemperatureMonitor(
                 self.config,
                 self.event_manager,
-                self.communication_service
+                self.communication_service,
+                self.communication_service.mqtt
             )
             await self.temperature_monitor.initialize()
             
@@ -177,7 +178,7 @@ class IoTGatewayApp:
     def handle_signals(self):
         """Set up signal handlers for graceful shutdown"""
         def signal_handler(signum, frame):
-            self.logger.info(f"Received signal {signum}")
+            self.logger.info(f"Received signal {signum}, {frame}")
             asyncio.create_task(self.shutdown())
 
         for sig in (signal.SIGTERM, signal.SIGINT):
@@ -190,6 +191,7 @@ class IoTGatewayApp:
             await self.initialize_components()
             
             # Start all services
+            # gather will not stop all the functions if anyone of the function failed, which is expected here.
             await asyncio.gather(
                 self.start_temperature_monitoring(),
                 self.api_server.start()

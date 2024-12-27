@@ -13,13 +13,13 @@ logger = get_logger(__name__)
 
 class TemperatureMonitor:
     def __init__(self, config: Dict[str, Any], event_manager, 
-                 communication_service: CommunicationService):
+                 communication_service: CommunicationService, mqtt:Optional[MQTTAdapter] = None):
         self.config = config
         self.event_manager = event_manager
         self.communication_service = communication_service
         self.i2c_adapter = None
         self.sensors = []
-        self.mqtt: Optional[MQTTAdapter] = None
+        self.mqtt = mqtt
         self.storage = TemperatureStorage(self.config['temperature_monitor']["database"]["path"])
         self.is_running = False
         print('*'*10, self.storage)
@@ -43,11 +43,6 @@ class TemperatureMonitor:
             )
             await sensor.initialize()
             self.sensors.append(sensor)
-
-        ## TODO Move this to somewhere 
-        # Initialize MQTT
-        self.mqtt = MQTTAdapter(self.config["communication"]["mqtt"])
-        await self.mqtt.connect()
 
         logger.info("Temperature monitor initialized")
 

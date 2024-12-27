@@ -17,7 +17,7 @@ class CommunicationService:
         if 'mqtt' in self.config:
             self.mqtt = MQTTAdapter(self.config['mqtt'])
             await self.mqtt.connect()
-            logger.info("Temperature monitor initialized")
+            logger.info("Mqtt service started")
         
         # Future initializations
         # if 'wifi' in self.config:

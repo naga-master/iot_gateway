@@ -10,7 +10,7 @@ logger = get_logger(__name__)
 
 class DeviceManager:
     '''
-    Singleton class
+    Singleton class for managing only one device manager throughout the application
     '''
     _instance: Optional['DeviceManager'] = None
     _initialized = False
@@ -50,11 +50,13 @@ class DeviceManager:
         command_id = str(uuid.uuid4()) # 4c99eadd-35e0-4263-86ec-59bcd5923c74
         
         # Create initial status
+        ####### TODO: To be removed in future while cleanup (check the effects) #######
         status = CommandStatus(
             command_id=command_id,
             status="PENDING"
         )
         # {"4c99eadd-35e0-4263-86ec-59bcd5923c74": {"command_id": "4c99eadd-35e0-4263-86ec-59bcd5923c74", "status": "PENDING"} }
+        ####### TODO: To be removed in future while cleanup (check the effects) #######
         self.command_statuses[command_id] = status
         
         # Queue command for processing
