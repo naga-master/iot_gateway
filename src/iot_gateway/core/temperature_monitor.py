@@ -25,6 +25,7 @@ class TemperatureMonitor:
         print('*'*10, self.storage)
 
     async def initialize(self) -> None:
+        logger.info("Initializing Temperature Monitor")
         # initialize DB to create table if not exist
         await self.storage.initialize()
 
@@ -66,7 +67,6 @@ class TemperatureMonitor:
                     print(data)
                     # Create reading
                     reading = TemperatureReading(
-                        # sensor_id=sensor.sensor_id,
                         **data
                     )
 
@@ -123,7 +123,6 @@ class TemperatureMonitor:
         for sensor in self.sensors:
             if hasattr(sensor, "disconnect"):
                 await sensor.disconnect()
-        if self.mqtt:
-            await self.mqtt.disconnect()
+
         logger.info("Temperature monitor stopped")
 

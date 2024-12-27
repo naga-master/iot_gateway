@@ -34,7 +34,7 @@ class ConfigManager:
                     raise ConfigurationError("Configuration file is empty or incorrectly formatted")
                 
                 # Validate required configuration sections
-                required_sections = ['api', 'communication', 'gpio', 'temperature_monitor', 'logging']
+                required_sections = ['api', 'communication', 'devices','temperature_monitor', 'logging']
                 missing_sections = [section for section in required_sections if section not in config]
                 if missing_sections:
                     raise ConfigurationError(f"Missing required configuration sections: {', '.join(missing_sections)}")
@@ -127,7 +127,8 @@ class IoTGatewayApp:
             # Initialize Device Manager
             self.device_manager = DeviceManager(
                 self.event_manager,
-                GPIOAdapter(self.config['gpio'])
+                GPIOAdapter(self.config['devices']),
+                self.config['devices']
             )
             await self.device_manager.initialize()
             
@@ -172,13 +173,14 @@ class IoTGatewayApp:
             
             self.shutdown_event.set()
             self.logger.info("Shutdown completed successfully")
+            sys.exit(1)
         except Exception as e:
             self.logger.error(f"Error during shutdown: {traceback.format_exc()}")
 
     def handle_signals(self):
         """Set up signal handlers for graceful shutdown"""
         def signal_handler(signum, frame):
-            self.logger.info(f"Received signal {signum}, {frame}")
+            self.logger.info(f"Received signal {signum}")
             asyncio.create_task(self.shutdown())
 
         for sig in (signal.SIGTERM, signal.SIGINT):

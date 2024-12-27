@@ -6,13 +6,14 @@ logger = get_logger(__name__)
 
 class CommunicationService:
     def __init__(self, config: Dict[str, Any]):
-        self.config = config
+        self.config = config['communication']
         self.mqtt: Optional[MQTTAdapter] = None
         # Future communication adapters
         # self.wifi = None 
         # self.bluetooth = None
 
     async def initialize(self) -> None:
+        logger.info(f"Initializing Communication Service")
         # Initialize MQTT
         if 'mqtt' in self.config:
             self.mqtt = MQTTAdapter(self.config['mqtt'])

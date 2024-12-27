@@ -19,12 +19,25 @@ communication:
   #   ssid: "network"
   #   password: "pass"
 
-gpio:
-  pins:
-    bulb1:
-      pin: 5
-      type: "output"
-      initial: false
+devices:
+  bulb1:
+    type: "bulb"
+    pin: 5
+    initial: false
+  plug1:
+    type: "smart_plug"
+    pin: 6
+    initial: false
+  device3:
+    type: "new_device"
+    # device-specific config
+
+# gpio:
+#   pins:
+#     bulb1:
+#       pin: 5
+#       type: "output"
+#       initial: false
 
 temperature_monitor:
   database:

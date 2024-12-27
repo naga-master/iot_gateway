@@ -4,7 +4,7 @@
 
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 # from ..adapters.i2c import I2CAdapter
 
 # Protocol Adapters
@@ -50,4 +50,31 @@ class I2CSensor(ABC):
     @abstractmethod
     async def get_config(self) -> Dict[str, Any]:
         """Get current sensor configuration."""
+        pass
+
+
+class BaseDevice(ABC):
+    """Base class for all device implementations"""
+    def __init__(self, device_id: str, config: Dict[str, Any]):
+        self.device_id = device_id
+        self.config = config
+        self.state: Dict[str, Any] = {}
+
+    @abstractmethod
+    async def initialize(self) -> None:
+        """Initialize the device with required settings"""
+        pass
+
+    @abstractmethod
+    async def execute_command(self, command_type: Any, params: Optional[Dict[str, Any]] = None) -> Any:
+        """Execute device-specific command"""
+        pass
+
+    @abstractmethod
+    async def get_state(self) -> Dict[str, Any]:
+        """Get current device state"""
+        pass
+
+    async def cleanup(self) -> None:
+        """Cleanup resources. Override if needed."""
         pass

@@ -230,56 +230,261 @@ class I2CAdapter(CommunicationAdapter):
 filepath: src/iot_gateway/adapters/mqtt.py
 code: 
 import asyncio
-from typing import Dict, Any, Callable
-import asyncio_mqtt as mqtt
-from ..adapters.base import BaseAdapter
+from typing import Dict, Any, Callable, Optional, Union, TypeVar, List
+from pydantic import BaseModel, Field
+import aiomqtt as mqtt
+import json
+import traceback
+from ..adapters.base import CommunicationAdapter
 from ..utils.logging import get_logger
+from ..utils.exceptions import CommunicationError
+from contextlib import asynccontextmanager
 
 logger = get_logger(__name__)
 
-class MQTTAdapter(BaseAdapter):
-    def __init__(self, config: Dict[str, Any]):
-        self.config = config
-        self.client = None
-        self.message_handlers = {}
+'''
+usage Examples
 
-    async def connect(self) -> None:
+await mqtt_adapter.connect()
+await mqtt_adapter.subscribe("test/topic", message_handler)
+
+await mqtt_adapter.publish({
+    "topic": "test/topic",
+    "payload": {"key": "value"},
+    "qos": 1
+})
+
+await mqtt_adapter.disconnect()
+
+'''
+
+
+class MQTTConfig(BaseModel):
+    """MQTT configuration model"""
+    host: str = Field(..., description="MQTT broker hostname")
+    port: int = Field(1883, description="MQTT broker port")
+    username: Optional[str] = Field(None, description="MQTT username")
+    password: Optional[str] = Field(None, description="MQTT password")
+    keepalive: int = Field(60, description="Connection keepalive in seconds")
+    client_id: Optional[str] = Field(None, description="MQTT client ID")
+    ssl: bool = Field(False, description="Enable SSL/TLS")
+    reconnect_interval: float = Field(5.0, description="Reconnection interval in seconds")
+    max_reconnect_attempts: int = Field(5, description="Maximum reconnection attempts")
+
+class MQTTMessage(BaseModel):
+    """MQTT message model"""
+    topic: str
+    payload: Union[dict, str, bytes]
+    qos: int = Field(0, ge=0, le=2)
+    retain: bool = False
+
+class MQTTAdapter(CommunicationAdapter):
+    def __init__(self, config: Dict[str, Any]):
+        """Initialize MQTT adapter with configuration"""
         try:
-            self.client = mqtt.Client(
-                hostname=self.config["host"],
-                port=self.config["port"],
-                username=self.config.get("username"),
-                password=self.config.get("password")
-            )
-            await self.client.connect()
-            logger.info("Connected to MQTT broker")
+            self.config = MQTTConfig(**config)
         except Exception as e:
-            logger.error(f"Failed to connect to MQTT: {e}")
-            raise
+            raise CommunicationError(f"Invalid MQTT configuration: {traceback.format_exc()}")
+
+        self.client: Optional[mqtt.Client] = None
+        self.message_handlers: Dict[str, List[Callable]] = {}
+        self.connected = asyncio.Event()
+        self._stop_flag = asyncio.Event()
+        self._message_processor_task: Optional[asyncio.Task] = None
+                
+    async def message_handler(topic: str, payload: Any):
+        print(f"Received on {topic}: {payload}")
+
+    async def publish(self, message: Union[MQTTMessage, Dict[str, Any]]) -> None:
+        """Publish message to MQTT topic"""
+        try:
+            if isinstance(message, dict):
+                message = MQTTMessage(**message)
+                
+            if not self.connected.is_set():
+                raise CommunicationError("Not connected to MQTT broker")
+                
+            payload = message.payload
+            if isinstance(payload, dict):
+                payload = json.dumps(payload)
+            elif not isinstance(payload, (str, bytes)):
+                payload = str(payload)
+                
+            if isinstance(payload, str):
+                payload = payload.encode()
+                
+            if self.client:
+                await self.client.publish(
+                    topic=message.topic,
+                    payload=payload,
+                    qos=message.qos,
+                    retain=message.retain
+                )
+                logger.debug(f"Published to {message.topic}: {message.payload}")
+                
+        except Exception as e:
+            raise CommunicationError(f"Failed to publish MQTT message: {traceback.format_exc()}")
+
+    @asynccontextmanager
+    async def _get_client(self):
+        """Context manager for MQTT client with automatic reconnection"""
+        attempt = 0
+        while attempt < self.config.max_reconnect_attempts and not self._stop_flag.is_set():
+            try:
+                async with mqtt.Client(
+                    hostname=self.config.host,
+                    port=self.config.port,
+                    username=self.config.username,
+                    password=self.config.password,
+                    keepalive=self.config.keepalive,
+                    identifier=self.config.client_id,
+                    # tls_insecure=self.config.ssl
+                ) as client:
+                    self.client = client
+                    self.connected.set()
+                    logger.info("Connected to MQTT broker")
+                    try:
+                        yield client
+                    finally:
+                        self.connected.clear()
+                        self.client = None
+                        logger.info("Disconnected from MQTT broker")
+                break  # Successful connection and operation
+                
+            except Exception as e:
+                attempt += 1
+                logger.error(f"MQTT connection attempt {attempt} failed: {traceback.format_exc()}")
+                if attempt >= self.config.max_reconnect_attempts:
+                    raise CommunicationError(f"Failed to connect to MQTT broker after {attempt} attempts")
+                
+                await asyncio.sleep(self.config.reconnect_interval)
+
+
+    async def _process_messages(self):
+        """Process incoming MQTT messages"""
+        try:
+            async with self._get_client() as client:
+                async for message in client.messages:
+                    if self._stop_flag.is_set():
+                        break
+                        
+                    topic = str(message.topic)
+                    try:
+                        payload = message.payload.decode()
+                        try:
+                            payload = json.loads(payload)
+                        except json.JSONDecodeError:
+                            pass  # Keep payload as string if not JSON
+                            
+                        if topic in self.message_handlers:
+                            for handler in self.message_handlers[topic]:
+                                try:
+                                    await handler(topic, payload)
+                                except Exception as e:
+                                    logger.error(f"Error in message handler for topic {topic}: {e}")
+                                    
+                    except Exception as e:
+                        logger.error(f"Error processing message on topic {topic}: {e}")
+                            
+        except Exception as e:
+            if not self._stop_flag.is_set():
+                logger.error(f"Error in message processing loop: {e}")
+                # Restart the message processor if not intentionally stopped
+                self._message_processor_task = asyncio.create_task(self._process_messages())
+    
+    async def connect(self) -> None:
+        """Connect to MQTT broker and start message processing"""
+        try:
+            self._stop_flag.clear()
+            self._message_processor_task = asyncio.create_task(self._process_messages())
+        except Exception as e:
+            raise CommunicationError(f"Failed to start MQTT adapter: {traceback.format_exc()}")
 
     async def disconnect(self) -> None:
-        if self.client:
-            await self.client.disconnect()
-            logger.info("Disconnected from MQTT broker")
+        """Disconnect from MQTT broker and cleanup"""
+        try:
+            self._stop_flag.set()
+            if self._message_processor_task:
+                await self._message_processor_task
+            self.connected.clear()
+            logger.info("MQTT adapter stopped")
+        except Exception as e:
+            raise CommunicationError(f"Error disconnecting from MQTT: {traceback.format_exc()}")
 
-    async def subscribe(self, topic: str, handler: Callable) -> None:
-        await self.client.subscribe(topic)
-        self.message_handlers[topic] = handler
-        logger.info(f"Subscribed to topic: {topic}")
+    async def subscribe(self, topic: str, handler: Callable[[str, Any], None]) -> None:
+        """Subscribe to MQTT topic with handler"""
+        try:
+            if not self.connected.is_set():
+                raise CommunicationError("Not connected to MQTT broker")
+                
+            if topic not in self.message_handlers:
+                self.message_handlers[topic] = []
+                if self.client:
+                    await self.client.subscribe(topic)
+                    
+            self.message_handlers[topic].append(handler)
+            logger.info(f"Subscribed to topic: {topic}")
+            
+        except Exception as e:
+            raise CommunicationError(f"Failed to subscribe to topic {topic}: {traceback.format_exc()}")
 
-    async def read_data(self) -> Dict[str, Any]:
-        # Not used for MQTT - using callbacks instead
-        pass
+    async def unsubscribe(self, topic: str, handler: Optional[Callable] = None) -> None:
+        """Unsubscribe from MQTT topic"""
+        try:
+            if topic in self.message_handlers:
+                if handler:
+                    self.message_handlers[topic].remove(handler)
+                    if not self.message_handlers[topic]:
+                        del self.message_handlers[topic]
+                        if self.client:
+                            await self.client.unsubscribe(topic)
+                else:
+                    del self.message_handlers[topic]
+                    if self.client:
+                        await self.client.unsubscribe(topic)
+                        
+            logger.info(f"Unsubscribed from topic: {topic}")
+            
+        except Exception as e:
+            raise CommunicationError(f"Failed to unsubscribe from topic {topic}: {traceback.format_exc()}")
+
+    async def publish(self, message: Union[MQTTMessage, Dict[str, Any]]) -> None:
+        """Publish message to MQTT topic"""
+        try:
+            if isinstance(message, dict):
+                message = MQTTMessage(**message)
+                
+            if not self.connected.is_set():
+                raise CommunicationError("Not connected to MQTT broker")
+                
+            payload = message.payload
+            if isinstance(payload, dict):
+                payload = json.dumps(payload)
+            elif not isinstance(payload, (str, bytes)):
+                payload = str(payload)
+                
+            if isinstance(payload, str):
+                payload = payload.encode()
+                
+            if self.client:
+                await self.client.publish(
+                    topic=message.topic,
+                    payload=payload,
+                    qos=message.qos,
+                    retain=message.retain
+                )
+                logger.debug(f"Published to {message.topic}: {message.payload}")
+                
+        except Exception as e:
+            raise CommunicationError(f"Failed to publish MQTT message: {traceback.format_exc()}")
 
     async def write_data(self, data: Dict[str, Any]) -> None:
-        try:
-            topic = data.pop("topic")
-            await self.client.publish(topic, data["payload"])
-            logger.debug(f"Published to {topic}: {data['payload']}")
-        except Exception as e:
-            logger.error(f"Failed to publish MQTT message: {e}")
-            raise
-        
+        """Write data to MQTT (alias for publish)"""
+        await self.publish(data)
+
+    async def read_data(self) -> Dict[str, Any]:
+        """Not implemented for MQTT - using callbacks instead"""
+        raise NotImplementedError("MQTT adapter uses callbacks for reading data")        
 
 filepath: src/iot_gateway/api/endpoints/devices.py
 code: 
@@ -373,40 +578,69 @@ class ConfigManager:
 filepath: src/iot_gateway/core/device_manager.py
 code:
 # Device lifecycle management
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import asyncio
 import uuid
-from ..models.device import DeviceCommand, CommandStatus
-from ..utils.logging import get_logger
+from iot_gateway.models.device import DeviceCommand, CommandStatus, CommandType
+from iot_gateway.utils.logging import get_logger
 from datetime import datetime
 
 logger = get_logger(__name__)
 
 class DeviceManager:
+    '''
+    Singleton class for managing only one device manager throughout the application
+    '''
+    _instance: Optional['DeviceManager'] = None
+    _initialized = False
+
     def __init__(self, event_manager, gpio_adapter):
-        self.event_manager = event_manager
-        self.gpio_adapter = gpio_adapter
-        self.command_queue = asyncio.Queue()
-        self.command_statuses: Dict[str, CommandStatus] = {}
+        if not DeviceManager._initialized and event_manager and gpio_adapter:
+            self.event_manager = event_manager
+            self.gpio_adapter = gpio_adapter
+            self.command_queue = asyncio.Queue()
+            self.command_statuses: Dict[str, CommandStatus] = {}
+            DeviceManager._initialized = True
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    @classmethod
+    def get_instance(cls) -> 'DeviceManager':
+        if not cls._instance or not cls._initialized:
+            raise RuntimeError("DeviceManager not initialized. Call initialize() first.")
+        return cls._instance
+
 
     async def initialize(self):
+        logger.info("Initializing Device Manager")
+        if not self.event_manager or not self.gpio_adapter:
+            raise RuntimeError("DeviceManager requires event_manager and gpio_adapter")
+
         # Subscribe to device command events
         await self.event_manager.subscribe("device.command", self._handle_command_event)
         # Start command processor
         asyncio.create_task(self._process_commands())
 
     async def _handle_command_event(self, command_data: Dict[str, Any]):
-        command = DeviceCommand(**command_data)
-        command_id = str(uuid.uuid4())
+        # When a command event arrives:
+        command = DeviceCommand(**command_data) # data = {"device_id": "bulb1", "command": "TURN_ON"}
+        command_id = str(uuid.uuid4()) # 4c99eadd-35e0-4263-86ec-59bcd5923c74
         
         # Create initial status
+        ####### TODO: To be removed in future while cleanup (check the effects) #######
         status = CommandStatus(
             command_id=command_id,
             status="PENDING"
         )
+        # {"4c99eadd-35e0-4263-86ec-59bcd5923c74": {"command_id": "4c99eadd-35e0-4263-86ec-59bcd5923c74", "status": "PENDING"} }
+        ####### TODO: To be removed in future while cleanup (check the effects) #######
         self.command_statuses[command_id] = status
         
         # Queue command for processing
+        # {"4c99eadd-35e0-4263-86ec-59bcd5923c74": {"device_id": "bulb1", "command": "TURN_ON"}}
         await self.command_queue.put((command_id, command))
         
         return command_id
@@ -414,19 +648,22 @@ class DeviceManager:
     async def _process_commands(self):
         while True:
             command_id, command = await self.command_queue.get()
+            print(command_id, command)
             try:
-                if command.command == "TURN_ON":
-                    await self.gpio_adapter.write_data({
-                        'device_id': command.device_id,
-                        'state': True
-                    })
+                if command.command == CommandType.TURN_ON:
+                    ### SHOULD BE UNCOMMENTED WHEN RUNNING WITH RASPBERRY PI ###
+                    # await self.gpio_adapter.write_data({
+                    #     'device_id': command.device_id,
+                    #     'state': True
+                    # })
                     status = "SUCCESS"
                     message = f"Device {command.device_id} turned ON"
-                elif command.command == "TURN_OFF":
-                    await self.gpio_adapter.write_data({
-                        'device_id': command.device_id,
-                        'state': False
-                    })
+                elif command.command ==CommandType.TURN_OFF:
+                    ### SHOULD BE UNCOMMENTED WHEN RUNNING WITH RASPBERRY PI ###
+                    # await self.gpio_adapter.write_data({
+                    #     'device_id': command.device_id,
+                    #     'state': False
+                    # })
                     status = "SUCCESS"
                     message = f"Device {command.device_id} turned OFF"
                 else:
@@ -445,10 +682,11 @@ class DeviceManager:
                 message=message,
                 executed_at=datetime.now()
             )
-            
+            print(self.command_statuses)
+
             # Publish status update event
             await self.event_manager.publish("device.status", 
-                self.command_statuses[command_id].dict())
+                self.command_statuses[command_id].model_dump())
 
     async def get_command_status(self, command_id: str) -> CommandStatus:
         return self.command_statuses.get(command_id)
@@ -508,6 +746,7 @@ filepath: src/iot_gateway/core/temperature_monitor.py
 code: 
 from typing import Dict, Any, Optional
 import asyncio
+import traceback
 from ..adapters.i2c import I2CAdapter
 from ..adapters.mqtt import MQTTAdapter
 from ..storage.database import TemperatureStorage
@@ -520,23 +759,29 @@ logger = get_logger(__name__)
 
 class TemperatureMonitor:
     def __init__(self, config: Dict[str, Any], event_manager, 
-                 communication_service: CommunicationService):
+                 communication_service: CommunicationService, mqtt:Optional[MQTTAdapter] = None):
         self.config = config
         self.event_manager = event_manager
         self.communication_service = communication_service
         self.i2c_adapter = None
         self.sensors = []
-        self.mqtt: Optional[MQTTAdapter] = None
-        self.storage = TemperatureStorage(config["database"]["path"])
+        self.mqtt = mqtt
+        self.storage = TemperatureStorage(self.config['temperature_monitor']["database"]["path"])
         self.is_running = False
+        print('*'*10, self.storage)
 
     async def initialize(self) -> None:
+        logger.info("Initializing Temperature Monitor")
+        # initialize DB to create table if not exist
+        await self.storage.initialize()
+
         # Initialize I2C adapter
-        self.i2c_adapter = I2CAdapter(self.config['i2c_bus'])
+        ## TODO Need to decide how should we need to handle if we have multiple BUS
+        self.i2c_adapter = I2CAdapter(self.config['temperature_monitor']['i2c_bus'])
         await self.i2c_adapter.connect()
 
         # Initialize sensors
-        for sensor_config in self.config['sensors']:
+        for sensor_config in self.config['temperature_monitor']['sensors']:
             sensor_class = self._get_sensor_class(sensor_config['type'])
             sensor = sensor_class(
                 self.i2c_adapter,
@@ -545,11 +790,6 @@ class TemperatureMonitor:
             )
             await sensor.initialize()
             self.sensors.append(sensor)
-
-        ## TODO Move this to somewhere 
-        # Initialize MQTT
-        self.mqtt = MQTTAdapter(self.config["mqtt"])
-        await self.mqtt.connect()
 
         logger.info("Temperature monitor initialized")
 
@@ -570,9 +810,9 @@ class TemperatureMonitor:
                     # Read sensor
                     data = await sensor.read_data()
                     
+                    print(data)
                     # Create reading
                     reading = TemperatureReading(
-                        sensor_id=sensor.sensor_id,
                         **data
                     )
 
@@ -589,12 +829,12 @@ class TemperatureMonitor:
                             })
                             reading.is_synced = True
                         except Exception as e:
-                            logger.error(f"Failed to publish reading: {e}")
+                            logger.error(f"Failed to publish reading: {traceback.format_exc()}")
                             # Will be synced later
 
-                await asyncio.sleep(self.config["reading_interval"])
+                await asyncio.sleep(self.config['temperature_monitor']["reading_interval"])
             except Exception as e:
-                logger.error(f"Error in monitoring loop: {e}")
+                logger.error(f"Error in monitoring loop: {traceback.format_exc()}")
                 await asyncio.sleep(5)  # Wait before retry
 
     async def sync_stored_readings(self) -> None:
@@ -611,26 +851,27 @@ class TemperatureMonitor:
                             })
                             reading.is_synced = True
                         except Exception as e:
-                            logger.error(f"Failed to sync reading: {e}")
+                            logger.error(f"Failed to sync reading: {traceback.format_exc()}")
                             break  # Stop if MQTT is down
                     
                     # Mark successful syncs
-                    synced_ids = [r.id for r in unsynced if r.is_synced]
+                    synced_ids = [r.sensor_id for r in unsynced if r.is_synced]
                     if synced_ids:
                         await self.storage.mark_as_synced(synced_ids)
 
             except Exception as e:
-                logger.error(f"Error in sync loop: {e}")
+                logger.error(f"error in sync loop: {traceback.format_exc()}")
             
-            await asyncio.sleep(self.config["sync_interval"])
+            await asyncio.sleep(self.config['temperature_monitor']["sync_interval"])
 
     async def stop(self) -> None:
         self.is_running = False
         for sensor in self.sensors:
-            await sensor.disconnect()
-        if self.mqtt:
-            await self.mqtt.disconnect()
+            if hasattr(sensor, "disconnect"):
+                await sensor.disconnect()
+
         logger.info("Temperature monitor stopped")
+
 
 
 filepath: src/iot_gateway/models/device.py
@@ -842,122 +1083,232 @@ code:
 # src/iot_gateway/__main__.py
 import asyncio
 import signal
+import sys
 import yaml
-import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from hypercorn.asyncio import serve
 from hypercorn.config import Config as HyperConfig
-import sys
+import traceback
 
 from iot_gateway.core.event_manager import EventManager
 from iot_gateway.core.device_manager import DeviceManager
 from iot_gateway.core.temperature_monitor import TemperatureMonitor
-from iot_gateway.adapters.mqtt import MQTTAdapter
 from iot_gateway.adapters.gpio import GPIOAdapter
-from iot_gateway.sensors.temperature import TemperatureMonitor
-from iot_gateway.storage.database import TemperatureStorage
-from iot_gateway.api.routes import router
-from iot_gateway.api.endpoints.devices import router as device_router
-from iot_gateway.utils.logging import setup_logging
 from iot_gateway.core.communication_service import CommunicationService
+from iot_gateway.api.routes import temp_router
+from iot_gateway.api.endpoints.devices import device_router
+from iot_gateway.utils.logging import setup_logging, get_logger
+from iot_gateway.utils.exceptions import ConfigurationError, InitializationError
 
-def load_config(config_path: str) -> dict:
-    with open(config_path, 'r') as f:
-        return yaml.safe_load(f)
+class ConfigManager:
+    """Manages configuration loading and validation"""
+    
+    @staticmethod
+    def load_config(config_path: str) -> Dict[str, Any]:
+        """Load and validate configuration from YAML file"""
+        try:
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+                if config is None:
+                    raise ConfigurationError("Configuration file is empty or incorrectly formatted")
+                
+                # Validate required configuration sections
+                required_sections = ['api', 'communication', 'gpio', 'temperature_monitor', 'logging']
+                missing_sections = [section for section in required_sections if section not in config]
+                if missing_sections:
+                    raise ConfigurationError(f"Missing required configuration sections: {', '.join(missing_sections)}")
+                
+                return config
+        except yaml.YAMLError as e:
+            raise ConfigurationError(f"Error parsing configuration file: {traceback.format_exc()}")
+        except FileNotFoundError:
+            raise ConfigurationError(f"Configuration file not found: {config_path}")
+
+class APIServer:
+    """Handles API server initialization and management"""
+    
+    def __init__(self, config: Dict[str, Any], shutdown_event: asyncio.Event):
+        self.config = config
+        self.shutdown_event = shutdown_event
+        self.logger = get_logger("API Server")
+        self.app: Optional[FastAPI] = None
+
+    async def initialize(self) -> FastAPI:
+        """Initialize FastAPI application with routes"""
+        try:
+            self.app = FastAPI(
+                title="IoT Gateway API",
+                description="IoT Gateway service managing sensors and communication",
+                version="1.0.0"
+            )
+            
+            # Register routes
+            self.app.include_router(temp_router, prefix="/api/v1")
+            self.app.include_router(device_router, prefix="/api/v1")
+            
+            return self.app
+        except Exception as e:
+            raise InitializationError(f"Failed to initialize API server: {traceback.format_exc()}")
+
+    async def start(self):
+        """Start the API server"""
+        if not self.app:
+            await self.initialize()
+
+        hypercorn_config = HyperConfig()
+        try:
+            host = self.config['api']['host']
+            port = self.config['api']['port']
+            hypercorn_config.bind = [f"{host}:{port}"]
+            
+            async def shutdown_trigger():
+                await self.shutdown_event.wait()
+                return
+            
+            self.logger.info(f"Starting API server on {host}:{port}")
+            await serve(self.app, hypercorn_config, shutdown_trigger=shutdown_trigger)
+        except Exception as e:
+            self.logger.error(f"Failed to start API server: {traceback.format_exc()}")
+            raise
 
 class IoTGatewayApp:
+    """Main IoT Gateway application class"""
+    
     def __init__(self, config_path: str):
-        self.config = load_config(config_path)
-        self.temperature_monitor = None
-        self.communication_service = None
-        self.api_app = None
-        self.shutdown_event = asyncio.Event()
-        self.event_manager = EventManager()
-        self.device_manager = None
-        
-        # Setup logging
-        setup_logging(self.config.get('logging', {}))
-
-    async def initialize(self):
-        # Start event processing loop
-        asyncio.create_task(self.event_manager.process_events())
-
-        # Initialize Communication Service
-        self.communication_service = CommunicationService(self.config)
-        await self.communication_service.initialize()
-
-        # Initialize device manager
-        self.device_manager = DeviceManager(self.event_manager, GPIOAdapter(self.config['gpio']))
-        await self.device_manager.initialize()
-
-    async def start_api(self):
-        #  FastAPI app is created
-        self.api_app = FastAPI(title="IoT Gateway API")
-        # 2. Routes are registered
-        self.api_app.include_router(router, prefix="/api/v1")
-        
-        hypercorn_config = HyperConfig()
-        hypercorn_config.bind = [f"{self.config['api']['host']}:{self.config['api']['port']}"]
-        
-        # Start API server
-        await serve(self.api_app, hypercorn_config, shutdown_trigger=self.shutdown_event.wait)
-
-    async def start_monitor(self):
-        self.temperature_monitor = TemperatureMonitor(self.config['temperature_monitor'], 
-                                                      self.event_manager, self.communication_service)
-        await self.temperature_monitor.initialize()
-        
-        # Start monitoring and syncing in separate tasks
-        monitor_task = asyncio.create_task(self.temperature_monitor.start_monitoring())
-        sync_task = asyncio.create_task(self.temperature_monitor.sync_stored_readings())
-
-        
-        # Wait for shutdown
-        await self.shutdown_event.wait()
-        
-        # Clean shutdown
-        await self.temperature_monitor.stop()
-        await asyncio.gather(monitor_task, sync_task, return_exceptions=True)
-
-    def handle_signals(self):
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            signal.signal(sig, self.handle_shutdown)
-
-    async def shutdown(self):
-        print("Received shutdown signal. Shutting down services gracefully...")
-        if self.temperature_monitor:
-            await self.temperature_monitor.stop()
-        if self.communication_service:
-            await self.communication_service.shutdown()
-        self.shutdown_event.set()
-
-    def handle_shutdown(self, signum, frame):
-        print("Received shutdown signal. Shutting down gracefully...")
-        self.shutdown_event.set()
-
-    async def run(self):
+        self.logger = get_logger("Main App")
         try:
-            # Signal handlers are set up for graceful shutdown
-            self.handle_signals()
-            
-            # Start all components
-            await self.initialize()
-            await asyncio.gather(
-                self.start_monitor(), # Temperature monitoring
-                self.start_api() # API server
-            )
-        except Exception as e:
-            print(f"Error starting application: {e}")
+            self.config = ConfigManager.load_config(config_path)
+            setup_logging(self.config.get('logging', {}))
+        except ConfigurationError as e:
+            self.logger.error(f"Configuration error: {traceback.format_exc()}")
             sys.exit(1)
 
+        # Initialize components
+        self.shutdown_event = asyncio.Event()
+        self.event_manager = EventManager()
+        self.api_server = APIServer(self.config, self.shutdown_event)
+        
+        # Components to be initialized later
+        self.temperature_monitor = None
+        self.communication_service = None
+        self.device_manager = None
 
-# Example config.yml
-example_config = """
+    async def initialize_components(self):
+        """Initialize all application components"""
+        try:
+            # Start event processing
+            asyncio.create_task(self.event_manager.process_events())
+            
+            # Initialize Communication Service
+            self.communication_service = CommunicationService(self.config)
+            await self.communication_service.initialize()
+            
+            # Initialize Device Manager
+            self.device_manager = DeviceManager(
+                self.event_manager,
+                GPIOAdapter(self.config['gpio'])
+            )
+            await self.device_manager.initialize()
+            
+            # Initialize Temperature Monitor
+            self.temperature_monitor = TemperatureMonitor(
+                self.config,
+                self.event_manager,
+                self.communication_service,
+                self.communication_service.mqtt
+            )
+            await self.temperature_monitor.initialize()
+            
+            self.logger.info("All components initialized successfully")
+        except Exception as e:
+            raise InitializationError(f"Failed to initialize components: {traceback.format_exc()}")
+
+    async def start_temperature_monitoring(self):
+        """Start temperature monitoring tasks"""
+        try:
+            monitor_task = asyncio.create_task(
+                self.temperature_monitor.start_monitoring()
+            )
+            sync_task = asyncio.create_task(
+                self.temperature_monitor.sync_stored_readings()
+            )
+            
+            await asyncio.gather(monitor_task, sync_task)
+        except Exception as e:
+            self.logger.error(f"Error in temperature monitoring: {traceback.format_exc()}")
+            await self.shutdown()
+
+    async def shutdown(self):
+        """Gracefully shutdown all components"""
+        self.logger.info("Initiating shutdown sequence")
+        try:
+            if self.temperature_monitor:
+                await self.temperature_monitor.stop()
+            if self.communication_service:
+                await self.communication_service.shutdown()
+            # if self.device_manager:
+            #     await self.device_manager.shutdown()
+            
+            self.shutdown_event.set()
+            self.logger.info("Shutdown completed successfully")
+            sys.exit(1)
+        except Exception as e:
+            self.logger.error(f"Error during shutdown: {traceback.format_exc()}")
+
+    def handle_signals(self):
+        """Set up signal handlers for graceful shutdown"""
+        def signal_handler(signum, frame):
+            self.logger.info(f"Received signal {signum}")
+            asyncio.create_task(self.shutdown())
+
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            signal.signal(sig, signal_handler)
+
+    async def run(self):
+        """Main application entry point"""
+        try:
+            self.handle_signals()
+            await self.initialize_components()
+            
+            # Start all services
+            # gather will not stop all the functions if anyone of the function failed, which is expected here.
+            await asyncio.gather(
+                self.start_temperature_monitoring(),
+                self.api_server.start()
+            )
+        except InitializationError as e:
+            self.logger.error(f"Initialization error: {traceback.format_exc()}")
+            await self.shutdown()
+            sys.exit(1)
+        except Exception as e:
+            self.logger.error(f"Unexpected error: {traceback.format_exc()}")
+            await self.shutdown()
+            sys.exit(1)
+
+def create_default_config(config_path: Path):
+    """Create default configuration file if it doesn't exist"""
+    if not config_path.exists():
+        example_config = """
 api:
   host: "0.0.0.0"
   port: 8000
+
+communication:
+  mqtt:
+    host: "localhost"
+    port: 1883
+    username: "user"
+    password: "pass"
+
+gpio:
+  pins:
+    bulb1:
+      pin: 5
+      type: "output"
+      initial: false
 
 temperature_monitor:
   database:
@@ -969,29 +1320,27 @@ temperature_monitor:
     - id: "sensor2"
       bus: 1
       address: 0x49
-  mqtt:
-    host: "localhost"
-    port: 1883
-    username: "user"
-    password: "pass"
-  reading_interval: 60  # seconds
-  sync_interval: 300    # seconds
+  reading_interval: 60
+  sync_interval: 300
 
 logging:
   level: "INFO"
-  file: "iot_gateway.log"
+  file: "logs/iot_gateway.log"
+  max_size: 10
+  backup_count: 5
+  format: "%(asctime)s - %(name)s - [%(levelname)s] - %(message)s"
 """
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(example_config)
+        print(f"Created default config at {config_path}")
 
 def main():
-    # Create default config if it doesn't exist
-    config_path = Path("config.yml")
-    if not config_path.exists():
-        with open(config_path, 'w') as f:
-            f.write(example_config)
-        print("Created default config.yml")
+    """Application entry point"""
+    config_path = Path("src/config/default.yml")
+    create_default_config(config_path)
     
     app = IoTGatewayApp(str(config_path))
-    asyncio.run(app.run()) # This kicks off everything
+    asyncio.run(app.run())
 
 if __name__ == "__main__":
     main()

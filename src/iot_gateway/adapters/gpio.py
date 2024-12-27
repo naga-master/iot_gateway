@@ -16,11 +16,11 @@ class GPIOAdapter(CommunicationAdapter):
         try:
             # GPIO.setmode(GPIO.BCM)
             # Initialize pins from config
-            for device_id, pin_config in self.config['pins'].items():
+            for _, pin_config in self.config.items():
                 pin = pin_config['pin']
                 ### SHOULD BE UNCOMMENTED WHEN RUNNING WITH RASPBERRY PI ###
                 # GPIO.setup(pin, GPIO.OUT)
-                self.pins[device_id] = pin
+                self.pins[pin_config['type']] = pin
             self.initialized = True
             logger.info("GPIO adapter initialized")
         except Exception as e:
