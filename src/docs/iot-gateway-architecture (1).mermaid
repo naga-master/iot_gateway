@@ -1,0 +1,69 @@
+graph TB
+    subgraph External["External Systems"]
+        MQTT["MQTT Broker<br>(HiveMQ)"]
+        API_CLIENT["API Clients"]
+    end
+
+    subgraph Core["Core Components"]
+        EM["Event Manager"]
+        DM["Device Manager"]
+        CS["Communication Service"]
+        TM["Temperature Monitor"]
+        API["API Server<br>(FastAPI)"]
+    end
+
+    subgraph Devices["Device Layer"]
+        BULB["Bulb Devices"]
+        PLUG["Smart Plugs"]
+        TEMP["Temperature Sensors<br>(TMP102/SHT31)"]
+    end
+
+    subgraph Adapters["Hardware Adapters"]
+        GPIO["GPIO Adapter"]
+        I2C["I2C Adapter"]
+        MQTT_A["MQTT Adapter"]
+    end
+
+    subgraph Storage["Data Storage"]
+        DB["SQLite Database<br>(Temperature Readings)"]
+        CONFIG["Configuration<br>(YAML)"]
+    end
+
+    %% Core Component Relationships
+    EM --> |Events| DM
+    EM --> |Events| TM
+    DM --> |Commands| EM
+    CS --> |Messages| EM
+    API --> |Commands| DM
+    API --> |Queries| DB
+
+    %% Device Management
+    DM --> |Control| GPIO
+    GPIO --> |Interface| BULB
+    GPIO --> |Interface| PLUG
+    TM --> |Readings| I2C
+    I2C --> |Data| TEMP
+
+    %% External Communication
+    CS --> |Manage| MQTT_A
+    MQTT_A <--> |Publish/Subscribe| MQTT
+    API_CLIENT <--> |HTTP| API
+
+    %% Data Flow
+    TM --> |Store| DB
+    CONFIG --> |Load| DM
+    CONFIG --> |Load| TM
+    CONFIG --> |Load| CS
+
+    %% Styling
+    classDef external fill:#f9f,stroke:#333,stroke-width:2px
+    classDef core fill:#bbf,stroke:#333,stroke-width:2px
+    classDef devices fill:#bfb,stroke:#333,stroke-width:2px
+    classDef adapters fill:#fbb,stroke:#333,stroke-width:2px
+    classDef storage fill:#ff9,stroke:#333,stroke-width:2px
+
+    class MQTT,API_CLIENT external
+    class EM,DM,CS,TM,API core
+    class BULB,PLUG,TEMP devices
+    class GPIO,I2C,MQTT_A adapters
+    class DB,CONFIG storage

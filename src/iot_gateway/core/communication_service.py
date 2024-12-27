@@ -28,6 +28,7 @@ class CommunicationService:
         
 
     async def shutdown(self) -> None:
+        logger.info("Shutting down communication services")
         if self.mqtt:
             await self.mqtt.disconnect()
         # Shutdown other adapters

@@ -7,28 +7,39 @@ api:
 # config.yml
 communication:
   mqtt:
-    host: "localhost"
+    host: "broker.hivemq.com"
     port: 1883
     username: "user"
     password: "pass"
+    keepalive: 60
+    client_id: "gateway"
+    ssl: false
+    reconnect_interval: 5
+    max_reconnect_attempts: 5
 
-gpio:
-  pins:
-    bulb1:
-      pin: 5
-      type: "output"
-      initial: false
+devices:
+  bulb1:
+    type: "bulb"
+    pin: 5
+    initial: false
+  plug1:
+    type: "smart_plug"
+    pin: 6
+    initial: false
 
 temperature_monitor:
   database:
     path: "temperature.db"
+  i2c_bus: 1
   sensors:
     - id: "sensor1"
       bus: 1
       address: 0x48
+      type: "TMP102"
     - id: "sensor2"
       bus: 1
       address: 0x49
+      type: "SHT31"
   reading_interval: 60
   sync_interval: 300
 
@@ -39,12 +50,101 @@ logging:
   backup_count: 5
   format: "%(asctime)s - %(name)s - [%(levelname)s] - %(message)s"
 
+filepath: src/iot_gateway/devices/factory.py
+code:
+from typing import Dict, Any, Type
+from iot_gateway.adapters.base import BaseDevice
+from .bulb import BulbDevice
+from .smart_plug import SmartPlug
+
+class DeviceFactory:
+    """Factory for creating device instances"""
+    _device_types: Dict[str, Type[BaseDevice]] = {
+        "bulb": BulbDevice,
+        "smart_plug": SmartPlug
+    }
+
+    @classmethod
+    def register_device_type(cls, device_type: str, device_class: Type[BaseDevice]) -> None:
+        """Register a new device type"""
+        cls._device_types[device_type] = device_class
+
+    @classmethod
+    def create_device(cls, device_type: str, device_id: str, config: Dict[str, Any], **kwargs) -> BaseDevice:
+        """Create a device instance based on type"""
+        if device_type not in cls._device_types:
+            raise ValueError(f"Unknown device type: {device_type}")
+            
+        device_class = cls._device_types[device_type]
+        return device_class(device_id, config, **kwargs)
+
+filepath: src/iot_gateway/devices/bulb.py
+code:
+from iot_gateway.adapters.base import BaseDevice
+from iot_gateway.models.device import CommandType, CommandStatus
+from typing import Dict, Any, Optional
+from iot_gateway.utils.logging import get_logger
+from datetime import datetime
+
+logger = get_logger(__name__)
+
+class BulbDevice(BaseDevice):
+    """Implementation for bulb devices"""
+    def __init__(self, device_id: str, config: Dict[str, Any], gpio_adapter):
+        super().__init__(device_id, config)
+        self.gpio_adapter = gpio_adapter
+        self.pin = config['pin']
+        self.state = {"power": False}
+
+    async def initialize(self) -> None:
+        """Initialize GPIO pin for the bulb"""
+        # GPIO setup is handled by the adapter
+        self.state["power"] = self.config.get("initial", False)
+        logger.info(f"Initialized bulb device {self.device_id} on pin {self.pin}")
+
+    async def execute_command(self, command_type: CommandType, params: Optional[Dict[str, Any]] = None) -> CommandStatus:
+        try:
+            if command_type == CommandType.TURN_ON:
+                self.state["power"] = True
+                status = "SUCCESS"
+                message = f"Bulb {self.device_id} turned ON"
+                
+            elif command_type == CommandType.TURN_OFF:
+                await self.gpio_adapter.write_data({
+                    'device_id': self.device_id,
+                    'state': False
+                })
+                self.state["power"] = False
+                status = "SUCCESS"
+                message = f"Bulb {self.device_id} turned OFF"
+                
+            else:
+                status = "FAILED"
+                message = f"Unknown command for bulb: {command_type}"
+
+            return CommandStatus(
+                command_id="",  # Will be set by DeviceManager
+                status=status,
+                message=message,
+                executed_at=datetime.now()
+            )
+            
+        except Exception as e:
+            logger.error(f"Error executing command on bulb {self.device_id}: {e}")
+            return CommandStatus(
+                command_id="",
+                status="FAILED",
+                message=str(e),
+                executed_at=datetime.now()
+            )
+
+    async def get_state(self) -> Dict[str, Any]:
+        return self.state
+    
+
 
 filepath: src/iot_gateway/adapters/base.py
 code: # Abstract base class for all protocol adapters
-# Separate files for each protocol implementation (bluetooth.py, wifi.py, etc.)
-# Each adapter implements the interface defined in base.py
-
 
 from abc import ABC, abstractmethod
 from typing import Dict, Any
@@ -241,23 +341,6 @@ from ..utils.exceptions import CommunicationError
 from contextlib import asynccontextmanager
 
 logger = get_logger(__name__)
-
-'''
-usage Examples
-
-await mqtt_adapter.connect()
-await mqtt_adapter.subscribe("test/topic", message_handler)
-
-await mqtt_adapter.publish({
-    "topic": "test/topic",
-    "payload": {"key": "value"},
-    "qos": 1
-})
-
-await mqtt_adapter.disconnect()
-
-'''
-
 
 class MQTTConfig(BaseModel):
     """MQTT configuration model"""
@@ -582,7 +665,9 @@ from typing import Dict, Any, Optional
 import asyncio
 import uuid
 from iot_gateway.models.device import DeviceCommand, CommandStatus, CommandType
+from iot_gateway.adapters.base import BaseDevice
 from iot_gateway.utils.logging import get_logger
+from iot_gateway.devices.factory import DeviceFactory
 from datetime import datetime
 
 logger = get_logger(__name__)
@@ -594,12 +679,14 @@ class DeviceManager:
     _instance: Optional['DeviceManager'] = None
     _initialized = False
 
-    def __init__(self, event_manager, gpio_adapter):
+    def __init__(self, event_manager, gpio_adapter, config):
         if not DeviceManager._initialized and event_manager and gpio_adapter:
             self.event_manager = event_manager
             self.gpio_adapter = gpio_adapter
+            self.device_config = config
             self.command_queue = asyncio.Queue()
             self.command_statuses: Dict[str, CommandStatus] = {}
+            self.devices: Dict[str, BaseDevice] = {}
             DeviceManager._initialized = True
 
     def __new__(cls, *args, **kwargs):
@@ -621,76 +708,96 @@ class DeviceManager:
 
         # Subscribe to device command events
         await self.event_manager.subscribe("device.command", self._handle_command_event)
+        await self._initialize_devices()
         # Start command processor
         asyncio.create_task(self._process_commands())
 
+    async def _initialize_devices(self):
+        """Initialize all configured devices"""
+        for device_name, config in self.device_config.items():
+            try:
+                device = DeviceFactory.create_device(
+                    device_type=config["type"],
+                    device_id=device_name,
+                    config=config,
+                    gpio_adapter=self.gpio_adapter
+                )
+                await device.initialize()
+                self.devices[device_name] = device
+                logger.info(f"Initialized device: {device_name}")
+            except Exception as e:
+                logger.error(f"Failed to initialize device {device_name}: {e}")
+
     async def _handle_command_event(self, command_data: Dict[str, Any]):
-        # When a command event arrives:
-        command = DeviceCommand(**command_data) # data = {"device_id": "bulb1", "command": "TURN_ON"}
-        command_id = str(uuid.uuid4()) # 4c99eadd-35e0-4263-86ec-59bcd5923c74
+        """Handle incoming device commands"""
+        command = DeviceCommand(**command_data)
+        command_id = str(uuid.uuid4())
         
         # Create initial status
-        ####### TODO: To be removed in future while cleanup (check the effects) #######
         status = CommandStatus(
             command_id=command_id,
             status="PENDING"
         )
-        # {"4c99eadd-35e0-4263-86ec-59bcd5923c74": {"command_id": "4c99eadd-35e0-4263-86ec-59bcd5923c74", "status": "PENDING"} }
-        ####### TODO: To be removed in future while cleanup (check the effects) #######
         self.command_statuses[command_id] = status
         
-        # Queue command for processing
-        # {"4c99eadd-35e0-4263-86ec-59bcd5923c74": {"device_id": "bulb1", "command": "TURN_ON"}}
         await self.command_queue.put((command_id, command))
-        
         return command_id
 
     async def _process_commands(self):
+        """Process commands from the queue"""
         while True:
             command_id, command = await self.command_queue.get()
-            print(command_id, command)
             try:
-                if command.command == CommandType.TURN_ON:
-                    ### SHOULD BE UNCOMMENTED WHEN RUNNING WITH RASPBERRY PI ###
-                    # await self.gpio_adapter.write_data({
-                    #     'device_id': command.device_id,
-                    #     'state': True
-                    # })
-                    status = "SUCCESS"
-                    message = f"Device {command.device_id} turned ON"
-                elif command.command ==CommandType.TURN_OFF:
-                    ### SHOULD BE UNCOMMENTED WHEN RUNNING WITH RASPBERRY PI ###
-                    # await self.gpio_adapter.write_data({
-                    #     'device_id': command.device_id,
-                    #     'state': False
-                    # })
-                    status = "SUCCESS"
-                    message = f"Device {command.device_id} turned OFF"
-                else:
-                    status = "FAILED"
-                    message = f"Unknown command: {command.command}"
+                device = self.devices.get(command.device_id)
+                if not device:
+                    raise ValueError(f"Unknown device: {command.device_id}")
+
+                # Execute command on the device
+                status = await device.execute_command(
+                    command.command,
+                    command.params
+                )
+                status.command_id = command_id
+                
+                # Update command status
+                self.command_statuses[command_id] = status
+
+                # Publish status update event
+                await self.event_manager.publish(
+                    "device.status",
+                    status.model_dump()
+                )
                 
             except Exception as e:
-                status = "FAILED"
-                message = str(e)
                 logger.error(f"Command execution failed: {e}")
-            
-            # Update command status
-            self.command_statuses[command_id] = CommandStatus(
-                command_id=command_id,
-                status=status,
-                message=message,
-                executed_at=datetime.now()
-            )
-            print(self.command_statuses)
+                error_status = CommandStatus(
+                    command_id=command_id,
+                    status="FAILED",
+                    message=str(e),
+                    executed_at=datetime.now()
+                )
+                self.command_statuses[command_id] = error_status
+                await self.event_manager.publish(
+                    "device.status",
+                    error_status.model_dump()
+                )
 
-            # Publish status update event
-            await self.event_manager.publish("device.status", 
-                self.command_statuses[command_id].model_dump())
-
-    async def get_command_status(self, command_id: str) -> CommandStatus:
+    async def get_command_status(self, command_id: str) -> Optional[CommandStatus]:
+        """Get the status of a command"""
         return self.command_statuses.get(command_id)
-    
+
+    async def get_device_state(self, device_id: str) -> Dict[str, Any]:
+        """Get current state of a device"""
+        device = self.devices.get(device_id)
+        if not device:
+            raise ValueError(f"Unknown device: {device_id}")
+        return await device.get_state()
+
+    async def cleanup(self):
+        """Cleanup all devices"""
+        for device in self.devices.values():
+            await device.cleanup()
+
 filepath: src/iot_gateway/core/event_manager.py
 code: 
 # Central event handling system
@@ -1288,57 +1395,9 @@ class IoTGatewayApp:
             await self.shutdown()
             sys.exit(1)
 
-def create_default_config(config_path: Path):
-    """Create default configuration file if it doesn't exist"""
-    if not config_path.exists():
-        example_config = """
-api:
-  host: "0.0.0.0"
-  port: 8000
-
-communication:
-  mqtt:
-    host: "localhost"
-    port: 1883
-    username: "user"
-    password: "pass"
-
-gpio:
-  pins:
-    bulb1:
-      pin: 5
-      type: "output"
-      initial: false
-
-temperature_monitor:
-  database:
-    path: "temperature.db"
-  sensors:
-    - id: "sensor1"
-      bus: 1
-      address: 0x48
-    - id: "sensor2"
-      bus: 1
-      address: 0x49
-  reading_interval: 60
-  sync_interval: 300
-
-logging:
-  level: "INFO"
-  file: "logs/iot_gateway.log"
-  max_size: 10
-  backup_count: 5
-  format: "%(asctime)s - %(name)s - [%(levelname)s] - %(message)s"
-"""
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        config_path.write_text(example_config)
-        print(f"Created default config at {config_path}")
-
 def main():
     """Application entry point"""
-    config_path = Path("src/config/default.yml")
-    create_default_config(config_path)
-    
+    config_path = Path("src/config/default.yml")    
     app = IoTGatewayApp(str(config_path))
     asyncio.run(app.run())
 

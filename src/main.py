@@ -207,57 +207,9 @@ class IoTGatewayApp:
             await self.shutdown()
             sys.exit(1)
 
-def create_default_config(config_path: Path):
-    """Create default configuration file if it doesn't exist"""
-    if not config_path.exists():
-        example_config = """
-api:
-  host: "0.0.0.0"
-  port: 8000
-
-communication:
-  mqtt:
-    host: "localhost"
-    port: 1883
-    username: "user"
-    password: "pass"
-
-gpio:
-  pins:
-    bulb1:
-      pin: 5
-      type: "output"
-      initial: false
-
-temperature_monitor:
-  database:
-    path: "temperature.db"
-  sensors:
-    - id: "sensor1"
-      bus: 1
-      address: 0x48
-    - id: "sensor2"
-      bus: 1
-      address: 0x49
-  reading_interval: 60
-  sync_interval: 300
-
-logging:
-  level: "INFO"
-  file: "logs/iot_gateway.log"
-  max_size: 10
-  backup_count: 5
-  format: "%(asctime)s - %(name)s - [%(levelname)s] - %(message)s"
-"""
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        config_path.write_text(example_config)
-        print(f"Created default config at {config_path}")
-
 def main():
     """Application entry point"""
-    config_path = Path("src/config/default.yml")
-    create_default_config(config_path)
-    
+    config_path = Path("src/config/default.yml")    
     app = IoTGatewayApp(str(config_path))
     asyncio.run(app.run())
 

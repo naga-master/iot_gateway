@@ -33,9 +33,10 @@ async def control_device(device_id: str, command: DeviceCommand) -> Dict[str, st
             "device.command",
             command.model_dump()
         )
-        
+
+        ##### TODO: Find a way to get command id for event it publish once the event is finished then pass below #####
         return {
-            "command_id": command_id,
+            # "command_id": command_id,
             "status": "accepted",
             "message": f"Command for device {device_id} accepted"
         }

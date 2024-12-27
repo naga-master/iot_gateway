@@ -1,0 +1,49 @@
+sequenceDiagram
+    participant Main as IoTGatewayApp
+    participant API as APIServer
+    participant DM as DeviceManager
+    participant EM as EventManager
+    participant TM as TempMonitor
+    participant CS as CommService
+    participant DB as Database
+
+    Main->>Main: load_config()
+    Main->>EM: create()
+    Main->>CS: initialize()
+    Main->>DM: initialize()
+    Main->>TM: initialize()
+    
+    par API Server
+        Main->>API: start()
+        API-->>Main: running
+    and Temperature Monitoring
+        Main->>TM: start_monitoring()
+        loop Every reading_interval
+            TM->>TM: read_sensors()
+            TM->>DB: store_reading()
+            TM->>CS: publish_reading()
+        end
+    and Event Processing
+        Main->>EM: process_events()
+        loop Event Loop
+            EM->>EM: wait_for_event()
+            EM->>DM: handle_device_events()
+            EM->>TM: handle_temp_events()
+        end
+    end
+
+    alt Device Command
+        API->>DM: control_device()
+        DM->>EM: publish(device.command)
+        EM->>DM: handle_command()
+        DM->>BaseDevice: execute_command()
+        BaseDevice-->>DM: command_status
+        DM->>EM: publish(device.status)
+    end
+
+    alt Shutdown Signal
+        Main->>TM: stop()
+        Main->>CS: shutdown()
+        Main->>API: shutdown()
+        Main->>Main: exit()
+    end

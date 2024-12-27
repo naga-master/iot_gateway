@@ -1,0 +1,69 @@
+graph TB
+    subgraph Core["Core Components"]
+        EvtMgr["Event Manager"]
+        DevMgr["Device Manager"]
+        CommSvc["Communication Service"]
+        TempMon["Temperature Monitor"]
+        API["REST API"]
+    end
+
+    subgraph Hardware["Hardware Layer"]
+        GPIO["GPIO Interface"]
+        I2C["I2C Interface"]
+        MQTT["MQTT Client"]
+    end
+
+    subgraph Storage["Storage Layer"]
+        SQLite[(SQLite DB)]
+        YAML[("YAML Config")]
+    end
+
+    subgraph Devices["Device Layer"]
+        Bulb["Smart Bulb\n(pin5)"]
+        Plug["Smart Plug\n(pin6)"]
+        TMP102["TMP102\n(0x48)"]
+        SHT31["SHT31\n(0x49)"]
+    end
+
+    subgraph External["External Systems"]
+        HiveMQ["HiveMQ Broker\n(1883)"]
+        Clients["API Clients\n(Port 8000)"]
+    end
+
+    %% Core interconnections
+    EvtMgr <--> DevMgr
+    EvtMgr <--> TempMon
+    EvtMgr <--> CommSvc
+    API <--> DevMgr
+    API <--> TempMon
+
+    %% Hardware connections
+    DevMgr <--> GPIO
+    TempMon <--> I2C
+    CommSvc <--> MQTT
+
+    %% Device connections
+    GPIO <--> Bulb
+    GPIO <--> Plug
+    I2C <--> TMP102
+    I2C <--> SHT31
+
+    %% External connections
+    MQTT <--> HiveMQ
+    API <--> Clients
+
+    %% Storage connections
+    TempMon --> SQLite
+    DevMgr --> YAML
+    
+    classDef core fill:#f9f,stroke:#333,stroke-width:2px
+    classDef hw fill:#bbf,stroke:#333,stroke-width:2px
+    classDef storage fill:#bfb,stroke:#333,stroke-width:2px
+    classDef device fill:#fbb,stroke:#333,stroke-width:2px
+    classDef external fill:#fff,stroke:#333,stroke-width:2px
+
+    class EvtMgr,DevMgr,CommSvc,TempMon,API core
+    class GPIO,I2C,MQTT hw
+    class SQLite,YAML storage
+    class Bulb,Plug,TMP102,SHT31 device
+    class HiveMQ,Clients external

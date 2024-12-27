@@ -172,9 +172,14 @@ class MQTTAdapter(CommunicationAdapter):
     async def disconnect(self) -> None:
         """Disconnect from MQTT broker and cleanup"""
         try:
+            logger.info("MQTT adapter stopping")
             self._stop_flag.set()
             if self._message_processor_task:
-                await self._message_processor_task
+                self._message_processor_task.cancel()
+                try:
+                    await self._message_processor_task
+                except asyncio.CancelledError:
+                    logger.info("Message processor task cancelled")
             self.connected.clear()
             logger.info("MQTT adapter stopped")
         except Exception as e:

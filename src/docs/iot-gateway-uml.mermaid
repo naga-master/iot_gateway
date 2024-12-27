@@ -1,0 +1,83 @@
+classDiagram
+    class BaseDevice {
+        <<abstract>>
+        +initialize()
+        +execute_command(command_type, params)
+        +get_state()
+        +cleanup()
+    }
+    
+    class CommunicationAdapter {
+        <<abstract>>
+        +connect()
+        +disconnect()
+        +read_data()
+        +write_data(data)
+    }
+
+    class I2CSensor {
+        <<abstract>>
+        -i2c_adapter
+        -address
+        -sensor_id
+        +initialize()
+        +read_data()
+        +get_config()
+    }
+
+    class DeviceManager {
+        -devices
+        -command_queue
+        -command_statuses
+        +initialize()
+        +get_command_status()
+        +get_device_state()
+        +cleanup()
+    }
+
+    class EventManager {
+        -subscribers
+        -event_queue
+        +publish()
+        +subscribe()
+        +process_events()
+    }
+
+    class TemperatureMonitor {
+        -config
+        -sensors
+        -storage
+        +initialize()
+        +start_monitoring()
+        +sync_stored_readings()
+        +stop()
+    }
+
+    class MQTTAdapter {
+        -client
+        -message_handlers
+        +connect()
+        +publish()
+        +subscribe()
+        +unsubscribe()
+    }
+
+    class GPIOAdapter {
+        -pins
+        +connect()
+        +read_data()
+        +write_data()
+    }
+
+    BulbDevice --|> BaseDevice
+    SmartPlug --|> BaseDevice
+    MQTTAdapter --|> CommunicationAdapter
+    GPIOAdapter --|> CommunicationAdapter
+    I2CAdapter --|> CommunicationAdapter
+    TMP102Sensor --|> I2CSensor
+    SHT31Sensor --|> I2CSensor
+    
+    DeviceManager --* BaseDevice
+    TemperatureMonitor --* I2CSensor
+    DeviceManager --o EventManager
+    TemperatureMonitor --o EventManager
