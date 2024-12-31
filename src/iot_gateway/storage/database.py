@@ -28,6 +28,7 @@ class DatabaseHandler:
         if not self._connection_pool:
             conn = await aiosqlite.connect(self.db_path)
             conn.row_factory = aiosqlite.Row
+            self._connection_pool.append(conn)
             return conn
         return self._connection_pool.pop()
 
@@ -109,11 +110,6 @@ class SensorDatabaseHandler(ABC, Generic[T]):
         """Mark readings as synced."""
         pass
 
-from typing import List, Optional, Type
-from datetime import datetime
-import aiosqlite
-from ..sensors.temperature import TemperatureReading
-from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -183,6 +179,7 @@ class TemperatureStorage:
                 'SELECT * FROM temperature_readings WHERE is_synced = 0'
             ) as cursor:
                 rows = await cursor.fetchall()
+
                 return [TemperatureReading(**dict(row)) for row in rows]
 
     async def mark_as_synced(self, reading_ids: List[int]) -> None:
@@ -193,7 +190,7 @@ class TemperatureStorage:
         async with aiosqlite.connect(self.db_path) as db:
             placeholders = ','.join('?' * len(reading_ids))
             await db.execute(
-                f'UPDATE temperature_readings SET is_synced = 1 WHERE id IN ({placeholders})',
+                f'UPDATE temperature_readings SET is_synced = 1 WHERE sensor_id IN ({placeholders})',
                 reading_ids
             )
             await db.commit()

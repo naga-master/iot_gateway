@@ -13,10 +13,9 @@ logger = get_logger(__name__)
 
 class TemperatureMonitor:
     def __init__(self, config: Dict[str, Any], event_manager, 
-                 communication_service: CommunicationService, mqtt: Optional[MQTTAdapter] = None):
+                 mqtt: Optional[MQTTAdapter] = None):
         self.config = config
         self.event_manager = event_manager
-        self.communication_service = communication_service
         self.i2c_adapters: Dict[int, I2CAdapter] = {}  # Support multiple buses
         self.sensors = []
         self.mqtt = mqtt
@@ -85,17 +84,12 @@ class TemperatureMonitor:
                     # Read sensor
                     data = await sensor.read_data()
                     
-                    print(data)
                     # Create reading
                     reading = TemperatureReading(
                         **data
                     )
-
-                    # Store reading
-                    await self.storage.store_reading(reading)
-
-                    # Use communication service for MQTT
-                    if self.communication_service.mqtt:
+                    print(data)
+                    if self.mqtt.connected.is_set():
                         # Publish reading
                         try:
                             await self.mqtt.write_data({
@@ -106,6 +100,9 @@ class TemperatureMonitor:
                         except Exception as e:
                             logger.error(f"Failed to publish reading: {traceback.format_exc()}")
                             # Will be synced later
+
+                    # Store reading
+                    await self.storage.store_reading(reading)
 
                 await asyncio.sleep(self.config['sensors']['temperature']['reading_interval'])
             except Exception as e:
@@ -120,11 +117,12 @@ class TemperatureMonitor:
                     logger.info(f"Syncing {len(unsynced)} stored readings")
                     for reading in unsynced:
                         try:
-                            await self.mqtt.write_data({
-                                "topic": f"temperature/{reading.sensor_id}",
-                                "payload": reading.model_dump_json()
-                            })
-                            reading.is_synced = True
+                            if self.mqtt.connected.is_set():
+                                await self.mqtt.write_data({
+                                    "topic": f"temperature/{reading.sensor_id}",
+                                    "payload": reading.model_dump_json()
+                                })
+                                reading.is_synced = True
                         except Exception as e:
                             logger.error(f"Failed to sync reading: {traceback.format_exc()}")
                             break  # Stop if MQTT is down

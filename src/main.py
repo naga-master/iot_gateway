@@ -136,7 +136,6 @@ class IoTGatewayApp:
             self.temperature_monitor = TemperatureMonitor(
                 self.config,
                 self.event_manager,
-                self.communication_service,
                 self.communication_service.mqtt
             )
             await self.temperature_monitor.initialize()
