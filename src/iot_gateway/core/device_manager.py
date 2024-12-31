@@ -66,19 +66,39 @@ class DeviceManager:
             except Exception as e:
                 logger.error(f"Failed to initialize device {device_name}: {e}")
 
-    async def _handle_command_event(self, command_data: Dict[str, Any]):
-        """Handle incoming device commands"""
+    async def submit_command(self, command: DeviceCommand) -> str:
+        """Submit a command and return its ID for tracking"""
+        command_id = await self._handle_command_event(command.model_dump())
+        return command_id
+
+    async def _handle_command_event(self, command_data: Dict[str, Any]) -> str:
+        """Handle incoming device commands and return command ID"""
         command = DeviceCommand(**command_data)
         command_id = str(uuid.uuid4())
         
-        # Create initial status
+        # Create initial status with only the required fields from the model
         status = CommandStatus(
             command_id=command_id,
-            status="PENDING"
+            status="PENDING"  # Required field
         )
         self.command_statuses[command_id] = status
         
+        # Add to processing queue
         await self.command_queue.put((command_id, command))
+        
+        # Publish command accepted event
+        await self.event_manager.publish(
+            "device.command.accepted",
+            {
+                "command_id": command_id,
+                "device_id": command.device_id,
+                "command": command.command.value,
+                "params": command.params,
+                "timestamp": command.timestamp.isoformat(),
+                "status": "PENDING"
+            }
+        )
+        
         return command_id
 
     async def _process_commands(self):
@@ -91,13 +111,17 @@ class DeviceManager:
                     raise ValueError(f"Unknown device: {command.device_id}")
 
                 # Execute command on the device
-                status = await device.execute_command(
+                result = await device.execute_command(
                     command.command,
                     command.params
                 )
-                status.command_id = command_id
                 
                 # Update command status
+                status = CommandStatus(
+                    command_id=command_id,
+                    status="COMPLETED",
+                    executed_at=datetime.now()
+                )
                 self.command_statuses[command_id] = status
 
                 # Publish status update event

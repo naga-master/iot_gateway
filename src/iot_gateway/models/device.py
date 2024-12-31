@@ -26,3 +26,4 @@ class CommandStatus(BaseModel):
     status: str
     message: Optional[str] = None
     executed_at: Optional[datetime] = None
+    
