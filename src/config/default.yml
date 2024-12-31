@@ -9,11 +9,11 @@ communication:
     port: 1883
     username: "user"
     password: "pass"
-    keepalive: 60
     client_id: "gateway"
-    ssl: false
-    reconnect_interval: 5
+    keepalive: 60
+    reconnect_interval: 5.0
     max_reconnect_attempts: 5
+    message_queue_size: 1000
   # Future communication configs
   # wifi:
   #   ssid: "network"
@@ -42,16 +42,20 @@ devices:
 temperature_monitor:
   database:
     path: "temperature.db"
-  i2c_bus: 1
+  i2c_buses:
+    - bus_number: 1
+    - bus_number: 2  # if needed
   sensors:
     - id: "sensor1"
       bus: 1
       address: 0x48
       type: "TMP102"
+      bus_number: 1  # specify which bus to use
     - id: "sensor2"
       bus: 1
       address: 0x49
       type: "SHT31"
+      bus_number: 2  # specify which bus to use
   reading_interval: 60
   sync_interval: 300
 

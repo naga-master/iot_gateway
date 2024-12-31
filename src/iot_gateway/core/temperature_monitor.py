@@ -13,40 +13,61 @@ logger = get_logger(__name__)
 
 class TemperatureMonitor:
     def __init__(self, config: Dict[str, Any], event_manager, 
-                 communication_service: CommunicationService, mqtt:Optional[MQTTAdapter] = None):
+                 communication_service: CommunicationService, mqtt: Optional[MQTTAdapter] = None):
         self.config = config
         self.event_manager = event_manager
         self.communication_service = communication_service
-        self.i2c_adapter = None
+        self.i2c_adapters: Dict[int, I2CAdapter] = {}  # Support multiple buses
         self.sensors = []
         self.mqtt = mqtt
         self.storage = TemperatureStorage(self.config['temperature_monitor']["database"]["path"])
         self.is_running = False
-        print('*'*10, self.storage)
+        self._sensor_read_lock = asyncio.Lock()  # Prevent concurrent sensor reads
 
     async def initialize(self) -> None:
         logger.info("Initializing Temperature Monitor")
-        # initialize DB to create table if not exist
         await self.storage.initialize()
 
-        # Initialize I2C adapter
-        ## TODO Need to decide how should we need to handle if we have multiple BUS
-        self.i2c_adapter = I2CAdapter(self.config['temperature_monitor']['i2c_bus'])
-        await self.i2c_adapter.connect()
+        # Initialize I2C adapters for each configured bus
+        for bus_config in self.config['temperature_monitor']['i2c_buses']:
+            bus_number = bus_config['bus_number']
+            adapter = I2CAdapter(bus_number)
+            try:
+                await adapter.connect()
+                self.i2c_adapters[bus_number] = adapter
+            except Exception as e:
+                logger.error(f"Failed to initialize I2C bus {bus_number}: {e}")
+                continue
 
         # Initialize sensors
         for sensor_config in self.config['temperature_monitor']['sensors']:
-            sensor_class = self._get_sensor_class(sensor_config['type'])
-            sensor = sensor_class(
-                self.i2c_adapter,
-                sensor_config['address'],
-                sensor_config['id']
-            )
-            await sensor.initialize()
-            self.sensors.append(sensor)
+            try:
+                bus_number = sensor_config.get('bus_number', 1)  # Default to bus 1
+                if bus_number not in self.i2c_adapters:
+                    logger.error(f"I2C bus {bus_number} not available for sensor {sensor_config['id']}")
+                    continue
 
-        logger.info("Temperature monitor initialized")
+                sensor_class = self._get_sensor_class(sensor_config['type'])
+                if not sensor_class:
+                    logger.error(f"Unknown sensor type: {sensor_config['type']}")
+                    continue
 
+                sensor = sensor_class(
+                    self.i2c_adapters[bus_number],
+                    sensor_config['address'],
+                    sensor_config['id']
+                )
+                await sensor.initialize()
+                self.sensors.append(sensor)
+                logger.info(f"Initialized sensor {sensor_config['id']} on bus {bus_number}")
+            except Exception as e:
+                logger.error(f"Failed to initialize sensor {sensor_config['id']}: {e}")
+
+        if not self.sensors:
+            logger.warning("No sensors were successfully initialized")
+        else:
+            logger.info(f"Temperature monitor initialized with {len(self.sensors)} sensors")
+            
     def _get_sensor_class(self, sensor_type: str) -> type:
         """Get sensor class based on type."""
         sensor_classes = {

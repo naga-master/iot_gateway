@@ -1,5 +1,5 @@
 import asyncio
-from typing import Dict, Any, Callable, Optional, Union, TypeVar, List
+from typing import Dict, Any, Callable, Optional, Union, List, Set
 from pydantic import BaseModel, Field
 import aiomqtt as mqtt
 import json
@@ -39,6 +39,7 @@ class MQTTConfig(BaseModel):
     ssl: bool = Field(False, description="Enable SSL/TLS")
     reconnect_interval: float = Field(5.0, description="Reconnection interval in seconds")
     max_reconnect_attempts: int = Field(5, description="Maximum reconnection attempts")
+    message_queue_size: int = Field(1000, description="Maximum size of message queue")
 
 class MQTTMessage(BaseModel):
     """MQTT message model"""
@@ -53,13 +54,54 @@ class MQTTAdapter(CommunicationAdapter):
         try:
             self.config = MQTTConfig(**config)
         except Exception as e:
-            raise CommunicationError(f"Invalid MQTT configuration: {traceback.format_exc()}")
+            raise CommunicationError(f"Invalid MQTT configuration: {str(e)}")
 
         self.client: Optional[mqtt.Client] = None
         self.message_handlers: Dict[str, List[Callable]] = {}
+        self.pending_subscriptions: Set[str] = set()
         self.connected = asyncio.Event()
         self._stop_flag = asyncio.Event()
+        self._reconnect_task: Optional[asyncio.Task] = None
         self._message_processor_task: Optional[asyncio.Task] = None
+        self._message_queue: asyncio.Queue = asyncio.Queue(maxsize=self.config.message_queue_size)
+        self._subscription_lock = asyncio.Lock()
+
+    async def _handle_connection_lost(self) -> None:
+        """Handle connection loss and attempt reconnection"""
+        self.connected.clear()
+        logger.warning("Connection to MQTT broker lost")
+        
+        # Store current subscriptions for resubscribing after reconnection
+        self.pending_subscriptions = set(self.message_handlers.keys())
+        
+        if not self._stop_flag.is_set():
+            self._reconnect_task = asyncio.create_task(self._reconnect())
+
+    async def _reconnect(self) -> None:
+        """Attempt to reconnect to MQTT broker"""
+        attempt = 0
+        while attempt < self.config.max_reconnect_attempts and not self._stop_flag.is_set():
+            try:
+                logger.info(f"Attempting to reconnect (attempt {attempt + 1}/{self.config.max_reconnect_attempts})")
+                await self.connect()
+                
+                # Resubscribe to topics
+                async with self._subscription_lock:
+                    for topic in self.pending_subscriptions:
+                        if self.client:
+                            await self.client.subscribe(topic)
+                            logger.info(f"Resubscribed to topic: {topic}")
+                self.pending_subscriptions.clear()
+                
+                return
+            except Exception as e:
+                attempt += 1
+                logger.error(f"Reconnection attempt {attempt} failed: {str(e)}")
+                if attempt < self.config.max_reconnect_attempts:
+                    await asyncio.sleep(self.config.reconnect_interval)
+
+        logger.error("Max reconnection attempts reached")
+        await self.disconnect()
                 
     async def message_handler(topic: str, payload: Any):
         print(f"Received on {topic}: {payload}")
@@ -129,79 +171,109 @@ class MQTTAdapter(CommunicationAdapter):
                 await asyncio.sleep(self.config.reconnect_interval)
 
 
-    async def _process_messages(self):
+    async def _process_messages(self) -> None:
         """Process incoming MQTT messages"""
-        try:
-            async with self._get_client() as client:
-                async for message in client.messages:
-                    if self._stop_flag.is_set():
-                        break
-                        
-                    topic = str(message.topic)
-                    try:
-                        payload = message.payload.decode()
+        while not self._stop_flag.is_set():
+            try:
+                async with self._get_client() as client:
+                    async for message in client.messages:
+                        if self._stop_flag.is_set():
+                            break
+
+                        topic = str(message.topic)
                         try:
-                            payload = json.loads(payload)
-                        except json.JSONDecodeError:
-                            pass  # Keep payload as string if not JSON
-                            
-                        if topic in self.message_handlers:
-                            for handler in self.message_handlers[topic]:
-                                try:
-                                    await handler(topic, payload)
-                                except Exception as e:
-                                    logger.error(f"Error in message handler for topic {topic}: {e}")
-                                    
-                    except Exception as e:
-                        logger.error(f"Error processing message on topic {topic}: {e}")
-                            
-        except Exception as e:
-            if not self._stop_flag.is_set():
-                logger.error(f"Error in message processing loop: {e}")
-                # Restart the message processor if not intentionally stopped
-                self._message_processor_task = asyncio.create_task(self._process_messages())
+                            payload = message.payload.decode()
+                            try:
+                                payload = json.loads(payload)
+                            except json.JSONDecodeError:
+                                pass  # Keep payload as string if not JSON
+
+                            # Queue message for processing
+                            try:
+                                await self._message_queue.put((topic, payload))
+                            except asyncio.QueueFull:
+                                logger.warning("Message queue full, dropping message")
+                                continue
+
+                        except Exception as e:
+                            logger.error(f"Error processing message on topic {topic}: {str(e)}")
+
+            except Exception as e:
+                if not self._stop_flag.is_set():
+                    logger.error(f"Error in message processing loop: {str(e)}")
+                    await self._handle_connection_lost()
+
+    async def _process_message_queue(self) -> None:
+        """Process messages from the queue"""
+        while not self._stop_flag.is_set():
+            try:
+                topic, payload = await self._message_queue.get()
+                if topic in self.message_handlers:
+                    for handler in self.message_handlers[topic]:
+                        try:
+                            await handler(topic, payload)
+                        except Exception as e:
+                            logger.error(f"Error in message handler for topic {topic}: {str(e)}")
+                self._message_queue.task_done()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error processing queued message: {str(e)}")
+                await asyncio.sleep(1)
+
     
     async def connect(self) -> None:
         """Connect to MQTT broker and start message processing"""
         try:
             self._stop_flag.clear()
             self._message_processor_task = asyncio.create_task(self._process_messages())
+            asyncio.create_task(self._process_message_queue())
         except Exception as e:
-            raise CommunicationError(f"Failed to start MQTT adapter: {traceback.format_exc()}")
+            raise CommunicationError(f"Failed to start MQTT adapter: {str(e)}")
 
     async def disconnect(self) -> None:
         """Disconnect from MQTT broker and cleanup"""
         try:
-            logger.info("MQTT adapter stopping")
             self._stop_flag.set()
-            if self._message_processor_task:
-                self._message_processor_task.cancel()
-                try:
-                    await self._message_processor_task
-                except asyncio.CancelledError:
-                    logger.info("Message processor task cancelled")
+            
+            # Cancel all running tasks
+            tasks = [self._message_processor_task]
+            if self._reconnect_task:
+                tasks.append(self._reconnect_task)
+            
+            for task in tasks:
+                if task and not task.done():
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+
+            # Clear state
             self.connected.clear()
+            self.pending_subscriptions.clear()
+            await self._message_queue.join()  # Wait for queued messages to be processed
+            
             logger.info("MQTT adapter stopped")
         except Exception as e:
-            raise CommunicationError(f"Error disconnecting from MQTT: {traceback.format_exc()}")
+            raise CommunicationError(f"Error disconnecting from MQTT: {str(e)}")
 
     async def subscribe(self, topic: str, handler: Callable[[str, Any], None]) -> None:
         """Subscribe to MQTT topic with handler"""
-        try:
-            if not self.connected.is_set():
-                raise CommunicationError("Not connected to MQTT broker")
+        async with self._subscription_lock:
+            try:
+                if topic not in self.message_handlers:
+                    self.message_handlers[topic] = []
+                    if self.client and self.connected.is_set():
+                        await self.client.subscribe(topic)
+                    else:
+                        self.pending_subscriptions.add(topic)
                 
-            if topic not in self.message_handlers:
-                self.message_handlers[topic] = []
-                if self.client:
-                    await self.client.subscribe(topic)
-                    
-            self.message_handlers[topic].append(handler)
-            logger.info(f"Subscribed to topic: {topic}")
+                self.message_handlers[topic].append(handler)
+                logger.info(f"Subscribed to topic: {topic}")
+            except Exception as e:
+                raise CommunicationError(f"Failed to subscribe to topic {topic}: {str(e)}")
             
-        except Exception as e:
-            raise CommunicationError(f"Failed to subscribe to topic {topic}: {traceback.format_exc()}")
-
     async def unsubscribe(self, topic: str, handler: Optional[Callable] = None) -> None:
         """Unsubscribe from MQTT topic"""
         try:
@@ -223,35 +295,45 @@ class MQTTAdapter(CommunicationAdapter):
             raise CommunicationError(f"Failed to unsubscribe from topic {topic}: {traceback.format_exc()}")
 
     async def publish(self, message: Union[MQTTMessage, Dict[str, Any]]) -> None:
-        """Publish message to MQTT topic"""
+        """Publish message to MQTT topic with retry logic"""
         try:
             if isinstance(message, dict):
                 message = MQTTMessage(**message)
-                
+
             if not self.connected.is_set():
                 raise CommunicationError("Not connected to MQTT broker")
-                
+
             payload = message.payload
             if isinstance(payload, dict):
                 payload = json.dumps(payload)
             elif not isinstance(payload, (str, bytes)):
                 payload = str(payload)
-                
+
             if isinstance(payload, str):
                 payload = payload.encode()
-                
-            if self.client:
-                await self.client.publish(
-                    topic=message.topic,
-                    payload=payload,
-                    qos=message.qos,
-                    retain=message.retain
-                )
-                logger.debug(f"Published to {message.topic}: {message.payload}")
-                
-        except Exception as e:
-            raise CommunicationError(f"Failed to publish MQTT message: {traceback.format_exc()}")
 
+            attempt = 0
+            while attempt < self.config.max_reconnect_attempts:
+                try:
+                    if self.client:
+                        await self.client.publish(
+                            topic=message.topic,
+                            payload=payload,
+                            qos=message.qos,
+                            retain=message.retain
+                        )
+                        logger.debug(f"Published to {message.topic}")
+                        return
+                except Exception as e:
+                    attempt += 1
+                    if attempt >= self.config.max_reconnect_attempts:
+                        raise
+                    logger.warning(f"Publish attempt {attempt} failed, retrying...")
+                    await asyncio.sleep(self.config.reconnect_interval)
+
+        except Exception as e:
+            raise CommunicationError(f"Failed to publish MQTT message: {str(e)}")
+        
     async def write_data(self, data: Dict[str, Any]) -> None:
         """Write data to MQTT (alias for publish)"""
         await self.publish(data)
