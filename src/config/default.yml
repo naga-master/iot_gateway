@@ -2,6 +2,30 @@ api:
   host: "0.0.0.0"
   port: 8000
 
+database:
+  # path: "/var/lib/sensor_data/sensors.db"
+  path: sensors.db
+  pool_size: 5
+  vacuum_interval: 86400  # Daily vacuum for optimization
+
+sync:
+  interval: 300  # sync interval in seconds
+  batch_size: 100
+  error_retry_interval: 60
+  cache_size: 1000
+  cache_expiry: 3600
+  protocols:
+    mqtt:
+      enabled: true
+      batch_size: 50
+      retry_interval: 300
+      qos: 1
+    rest:
+      enabled: true
+      batch_size: 20
+      retry_interval: 600
+      timeout: 30
+
 # config.yml
 communication:
   mqtt:
@@ -39,25 +63,42 @@ devices:
 #       type: "output"
 #       initial: false
 
-temperature_monitor:
-  database:
-    path: "temperature.db"
-  i2c_buses:
-    - bus_number: 1
-    - bus_number: 2  # if needed
-  sensors:
-    - id: "sensor1"
-      bus: 1
-      address: 0x48
-      type: "TMP102"
-      bus_number: 1  # specify which bus to use
-    - id: "sensor2"
-      bus: 1
-      address: 0x49
-      type: "SHT31"
-      bus_number: 2  # specify which bus to use
-  reading_interval: 60
-  sync_interval: 300
+
+sensors:
+  temperature:
+    table_name: "humidity_readings"
+    batch_size: 100
+    max_age_days: 30
+    reading_interval: 60
+    i2c:
+      - id: "sensor1"
+        enabled: true
+        bus: 1
+        address: 0x48
+        type: "TMP102"
+        bus_number: 1  # specify which bus to use
+        reading_interval: 60
+        sync_interval: 300
+
+      - id: "sensor2"
+        enabled: true
+        bus: 1
+        address: 0x49
+        type: "SHT31"
+        bus_number: 2  # specify which bus to use
+        reading_interval: 60
+        sync_interval: 300
+  
+  humidity:
+    table_name: "humidity_readings"
+    batch_size: 100
+    max_age_days: 30
+
+      
+  pressure:
+    table_name: "pressure_readings"
+    batch_size: 100
+    max_age_days: 30
 
 logging:
   level: "INFO"

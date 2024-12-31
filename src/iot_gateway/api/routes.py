@@ -13,7 +13,7 @@ async def get_temperature_readings(
     end_time: Optional[datetime] = None
 ) -> List[TemperatureReading]:
     try:
-        storage = TemperatureStorage("temperature.db")  # Should use DI in real app
+        storage = TemperatureStorage("sensors.db")  # Should use DI in real app
         readings = await storage.get_readings(
             sensor_id,
             start_time or datetime.now() - timedelta(hours=24),

@@ -20,7 +20,7 @@ class TemperatureMonitor:
         self.i2c_adapters: Dict[int, I2CAdapter] = {}  # Support multiple buses
         self.sensors = []
         self.mqtt = mqtt
-        self.storage = TemperatureStorage(self.config['temperature_monitor']["database"]["path"])
+        self.storage = TemperatureStorage(self.config["database"]["path"])
         self.is_running = False
         self._sensor_read_lock = asyncio.Lock()  # Prevent concurrent sensor reads
 
@@ -29,8 +29,8 @@ class TemperatureMonitor:
         await self.storage.initialize()
 
         # Initialize I2C adapters for each configured bus
-        for bus_config in self.config['temperature_monitor']['i2c_buses']:
-            bus_number = bus_config['bus_number']
+        for sensor in self.config['sensors']['temperature']['i2c']:
+            bus_number = sensor['bus_number']
             adapter = I2CAdapter(bus_number)
             try:
                 await adapter.connect()
@@ -40,7 +40,7 @@ class TemperatureMonitor:
                 continue
 
         # Initialize sensors
-        for sensor_config in self.config['temperature_monitor']['sensors']:
+        for sensor_config in self.config['sensors']['temperature']['i2c']:
             try:
                 bus_number = sensor_config.get('bus_number', 1)  # Default to bus 1
                 if bus_number not in self.i2c_adapters:
@@ -67,7 +67,7 @@ class TemperatureMonitor:
             logger.warning("No sensors were successfully initialized")
         else:
             logger.info(f"Temperature monitor initialized with {len(self.sensors)} sensors")
-            
+
     def _get_sensor_class(self, sensor_type: str) -> type:
         """Get sensor class based on type."""
         sensor_classes = {
@@ -107,7 +107,7 @@ class TemperatureMonitor:
                             logger.error(f"Failed to publish reading: {traceback.format_exc()}")
                             # Will be synced later
 
-                await asyncio.sleep(self.config['temperature_monitor']["reading_interval"])
+                await asyncio.sleep(self.config['sensors']['temperature']['reading_interval'])
             except Exception as e:
                 logger.error(f"Error in monitoring loop: {traceback.format_exc()}")
                 await asyncio.sleep(5)  # Wait before retry
@@ -137,7 +137,7 @@ class TemperatureMonitor:
             except Exception as e:
                 logger.error(f"error in sync loop: {traceback.format_exc()}")
             
-            await asyncio.sleep(self.config['temperature_monitor']["sync_interval"])
+            await asyncio.sleep(self.config['sync']["interval"])
 
     async def stop(self) -> None:
         self.is_running = False

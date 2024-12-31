@@ -34,7 +34,7 @@ class ConfigManager:
                     raise ConfigurationError("Configuration file is empty or incorrectly formatted")
                 
                 # Validate required configuration sections
-                required_sections = ['api', 'communication', 'devices','temperature_monitor', 'logging']
+                required_sections = ['api', 'communication', 'devices', 'logging']
                 missing_sections = [section for section in required_sections if section not in config]
                 if missing_sections:
                     raise ConfigurationError(f"Missing required configuration sections: {', '.join(missing_sections)}")
