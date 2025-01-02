@@ -103,6 +103,7 @@ class MQTTAdapter(CommunicationAdapter):
         logger.error("Max reconnection attempts reached")
         await self.disconnect()
                 
+    @staticmethod
     async def message_handler(topic: str, payload: Any):
         print(f"Received on {topic}: {payload}")
 
@@ -185,6 +186,7 @@ class MQTTAdapter(CommunicationAdapter):
                             payload = message.payload.decode()
                             try:
                                 payload = json.loads(payload)
+                                logger.debug(f"received {payload} from {topic}")
                             except json.JSONDecodeError:
                                 pass  # Keep payload as string if not JSON
 

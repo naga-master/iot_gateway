@@ -119,11 +119,7 @@ class IoTGatewayApp:
         try:
             # Start event processing
             asyncio.create_task(self.event_manager.process_events())
-            
-            # Initialize Communication Service
-            self.communication_service = CommunicationService(self.config)
-            await self.communication_service.initialize()
-            
+
             # Initialize Device Manager
             self.device_manager = DeviceManager(
                 self.event_manager,
@@ -131,6 +127,10 @@ class IoTGatewayApp:
                 self.config['devices']
             )
             await self.device_manager.initialize()
+            
+            # Initialize Communication Service
+            self.communication_service = CommunicationService(self.config)
+            await self.communication_service.initialize()
             
             # Initialize Temperature Monitor
             self.temperature_monitor = TemperatureMonitor(

@@ -33,10 +33,11 @@ class BulbDevice(BaseDevice):
                 message = f"Bulb {self.device_id} turned ON"
                 
             elif command_type == CommandType.TURN_OFF:
-                await self.gpio_adapter.write_data({
-                    'device_id': self.device_id,
-                    'state': False
-                })
+                ####### TODO: To be removed in future while cleanup (check the effects) #######
+                # await self.gpio_adapter.write_data({
+                #     'device_id': self.device_id,
+                #     'state': False
+                # })
                 self.state["power"] = False
                 status = "SUCCESS"
                 message = f"Bulb {self.device_id} turned OFF"

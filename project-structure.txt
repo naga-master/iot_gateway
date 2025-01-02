@@ -26,12 +26,21 @@ iot_gateway/
 │       │   ├── __init__.py
 │       │   ├── temperature.py    # sensors class
 │       │
+│       ├── devices/          # attachable devices
+│       │   ├── __init__.py
+│       │   ├── bulb.py
+│       │   ├── factory.py
+│       │   ├── smart_plug.py
+│       │
 │       ├── core/          # Core system components
 │       │   ├── __init__.py
+│       │   ├── communication_service.py
+│       │   ├── config_manager.py
 │       │   ├── event_manager.py
 │       │   ├── device_manager.py
 │       │   ├── protocol_manager.py
 │       │   └── config_manager.py
+│       │   └── temperature_monitor.py
 │       │
 │       ├── processing/    # Data processing and business logic
 │       │   ├── __init__.py
@@ -55,6 +64,8 @@ iot_gateway/
 │       │   ├── __init__.py
 │       │   ├── logging.py
 │       │   ├── validation.py
+│       │   ├── exceptions.py
+│       │   ├── retry.py
 │       │   └── helpers.py
 │       │
 │       └── api/           # API endpoints

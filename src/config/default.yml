@@ -29,7 +29,7 @@ sync:
 # config.yml
 communication:
   mqtt:
-    host: "broker.hivemq.com"
+    host: "broker.emqx.io"
     port: 1883
     username: "user"
     password: "pass"
@@ -38,6 +38,10 @@ communication:
     reconnect_interval: 5.0
     max_reconnect_attempts: 5
     message_queue_size: 1000
+    connection_timeout: 60
+    subscribe_topics:
+      - devices/smart_plug/plug1/command
+      - temperature/bulb1
   # Future communication configs
   # wifi:
   #   ssid: "network"
@@ -102,6 +106,7 @@ sensors:
 
 logging:
   level: "INFO"
+  # level: "DEBUG"
   file: "logs/iot_gateway.log"
   max_size: 10  # MB
   backup_count: 5

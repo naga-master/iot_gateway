@@ -70,3 +70,4 @@ class SmartPlug(BaseDevice):
             self.state["power_consumption"] = 120.5  # Example value
             self.state["voltage"] = 220.0  # Example value
         return self.state
+    

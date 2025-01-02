@@ -68,6 +68,7 @@ class DeviceManager:
 
     async def submit_command(self, command: DeviceCommand) -> str:
         """Submit a command and return its ID for tracking"""
+        print("Submit command Received", command)
         command_id = await self._handle_command_event(command.model_dump())
         return command_id
 
