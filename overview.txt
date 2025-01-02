@@ -23,10 +23,11 @@ IoT Gateway Project:
   - src/iot_gateway/processing/business_processor.py: BusinessProcessor class, process method.
   - src/iot_gateway/sensors/temperature.py: TMP102Sensor, SHT31Sensor, TemperatureReading classes.
   - src/iot_gateway/storage/database.py: TemperatureStorage class, initialize, store_reading, get_unsynced_readings, mark_as_synced, get_readings.
+  - src/iot_gateway/handlers/mqtt_handlers.py: MQTTMessageHandlers class, smart_plug_handler, temperature_handler, general_handler
   - __main__.py: IoTGatewayApp class, ConfigManager, APIServer, main function, initialize_components, start_temperature_monitoring, shutdown, handle_signals, run.
 ```
 
-### Code Flow
+### Updated Code Flow
 1. **Configuration Loading**:
    - The application starts by loading configurations from `src/config/default.yml` using `ConfigManager`.
 
@@ -45,7 +46,10 @@ IoT Gateway Project:
 6. **Event Handling**:
    - `EventManager` handles publishing and subscribing to events, ensuring asynchronous communication between components.
 
-### Architecture
+7. **MQTT Communication**:
+   - `CommunicationService` initializes MQTT connections, subscribes to topics, and handles incoming messages using `MQTTMessageHandlers`.
+
+### Updated Architecture
 - **Modular Design**:
   - The project is divided into modules like `adapters`, `api`, `core`, `devices`, `models`, `processing`, `sensors`, and `storage`.
 
@@ -58,7 +62,10 @@ IoT Gateway Project:
 - **Microservices**:
   - The API server and other components like `TemperatureMonitor` and `DeviceManager` operate as independent services.
 
-### Design Patterns
+- **MQTT Communication**:
+  - `CommunicationService` manages MQTT connections and message handling, integrating with `MQTTMessageHandlers` for specific topic handling.
+
+### Updated Design Patterns
 1. **Factory Pattern**:
    - `DeviceFactory` is used to create instances of different device types based on configuration.
 
@@ -77,4 +84,7 @@ IoT Gateway Project:
 6. **Dependency Injection**:
    - Components like `TemperatureMonitor` and `DeviceManager` receive dependencies (e.g., adapters, event manager) through their constructors.
 
-This architecture and design ensure the system is modular, scalable, and maintainable. If you have any specific questions or need further details, feel free to ask! 😊
+7. **Handler Pattern**:
+   - `MQTTMessageHandlers` uses specific handlers for different MQTT topics, ensuring modular and maintainable message processing.
+
+This updated architecture and design ensure the system is modular, scalable, and maintainable, with enhanced MQTT communication capabilities. If you have any specific questions or need further details, feel free to ask! 😊

@@ -3,7 +3,7 @@ import asyncio
 from ..adapters.mqtt import MQTTAdapter
 from ..utils.logging import get_logger
 from ..utils.exceptions import CommunicationError
-from ..core.mqtt_handlers import MQTTMessageHandlers
+from ..handlers.mqtt_handlers import MQTTMessageHandlers
 
 logger = get_logger(__name__)
 
@@ -66,7 +66,7 @@ class CommunicationService:
         # Map topic patterns to specific handlers
         handler_mapping = {
             'devices/smart_plug/plug1/command': self.handlers.smart_plug_handler,
-            'temperature/bulb1': MQTTAdapter.message_handler
+            'gateway/#': MQTTAdapter.message_handler
             # Add more mappings as needed
         }
 

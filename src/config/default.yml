@@ -41,7 +41,7 @@ communication:
     connection_timeout: 60
     subscribe_topics:
       - devices/smart_plug/plug1/command
-      - temperature/bulb1
+      - gateway/#
   # Future communication configs
   # wifi:
   #   ssid: "network"
