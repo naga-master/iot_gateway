@@ -67,6 +67,18 @@ class MQTTAdapter(CommunicationAdapter):
         self._message_queue: asyncio.Queue = asyncio.Queue(maxsize=self.config.message_queue_size)
         self._subscription_lock = asyncio.Lock()
 
+    async def _subscribe_topics(self) -> None:
+        """Subscribe to all stored topics"""
+        async with self._subscription_lock:
+            for topic, handlers in self.message_handlers.items():
+                if self.client:
+                    try:
+                        await self.client.subscribe(topic)
+                        logger.info(f"Resubscribed to topic: {topic}")
+                    except Exception as e:
+                        logger.error(f"Failed to resubscribe to topic {topic}: {str(e)}")
+                        self.pending_subscriptions.add(topic)
+
     async def _handle_connection_lost(self) -> None:
         """Handle connection loss and attempt reconnection"""
         self.connected.clear()
@@ -81,16 +93,8 @@ class MQTTAdapter(CommunicationAdapter):
         while attempt < self.config.max_reconnect_attempts and not self._stop_flag.is_set():
             try:
                 logger.info(f"Attempting to reconnect (attempt {attempt + 1}/{self.config.max_reconnect_attempts})")
-                await self.connect()
-                
-                # Resubscribe to topics
-                async with self._subscription_lock:
-                    for topic, handler in self.message_handlers.items():
-                        if self.client:
-                            await self.client.subscribe(topic, handler)
-                            logger.info(f"Resubscribed to topic: {topic}")
+                await self._subscribe_topics()
                 self.pending_subscriptions.clear()
-                
                 return
             except Exception as e:
                 attempt += 1
@@ -147,10 +151,12 @@ class MQTTAdapter(CommunicationAdapter):
                     username=self.config.username,
                     password=self.config.password,
                     keepalive=self.config.keepalive,
-                    identifier=self.config.client_id + random.choice(["ID_1", "ID_2", "ID_3"])
+                    identifier=f"{self.config.client_id}_{random.randint(1000, 9999)}",
+                    tls_context=True if self.config.ssl else None
                 ) as client:
                     self.client = client
                     self.connected.set()
+                    await self._subscribe_topics()  # Add subscription here when connection is established
                     logger.info("Connected to MQTT broker")
                     try:
                         yield client
