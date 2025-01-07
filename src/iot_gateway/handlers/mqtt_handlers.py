@@ -8,8 +8,9 @@ import json
 logger = get_logger(__name__)
 
 class MQTTMessageHandlers:
-    def __init__(self):
+    def __init__(self, event_manager):
         self.device_manager = DeviceManager.get_instance()
+        self.event_manager = event_manager
 
     async def smart_plug_handler(self, topic: str, payload: Any) -> None:
         """Handle smart plug control messages
@@ -79,6 +80,11 @@ class MQTTMessageHandlers:
     async def temperature_handler(topic: str, payload: Any) -> None:
         """Handle temperature related messages"""
         logger.info(f"Temperature reading from {topic}: {payload}")
+
+    async def temperature_ack_handler(self, topic: str, payload: Any) -> None:
+        """Forward temperature acks to event manager"""
+        for callback in self.event_manager.subscribers.get("temperature_ack"):
+            await callback(topic, payload)
         
     @staticmethod
     async def general_handler(topic: str, payload: Any) -> None:

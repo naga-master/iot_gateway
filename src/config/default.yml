@@ -38,10 +38,11 @@ communication:
     reconnect_interval: 5.0
     max_reconnect_attempts: 5
     message_queue_size: 1000
-    connection_timeout: 60
+    connection_timeout: 100
     subscribe_topics:
       - devices/smart_plug/plug1/command
       - gateway/#
+      - temperature/ack
   # Future communication configs
   # wifi:
   #   ssid: "network"

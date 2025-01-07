@@ -8,6 +8,7 @@ from ..adapters.base import CommunicationAdapter
 from ..utils.logging import get_logger
 from ..utils.exceptions import CommunicationError
 from contextlib import asynccontextmanager
+import random
 
 logger = get_logger(__name__)
 
@@ -71,9 +72,6 @@ class MQTTAdapter(CommunicationAdapter):
         self.connected.clear()
         logger.warning("Connection to MQTT broker lost")
         
-        # Store current subscriptions for resubscribing after reconnection
-        self.pending_subscriptions = set(self.message_handlers.keys())
-        
         if not self._stop_flag.is_set():
             self._reconnect_task = asyncio.create_task(self._reconnect())
 
@@ -87,9 +85,9 @@ class MQTTAdapter(CommunicationAdapter):
                 
                 # Resubscribe to topics
                 async with self._subscription_lock:
-                    for topic in self.pending_subscriptions:
+                    for topic, handler in self.message_handlers.items():
                         if self.client:
-                            await self.client.subscribe(topic)
+                            await self.client.subscribe(topic, handler)
                             logger.info(f"Resubscribed to topic: {topic}")
                 self.pending_subscriptions.clear()
                 
@@ -149,8 +147,7 @@ class MQTTAdapter(CommunicationAdapter):
                     username=self.config.username,
                     password=self.config.password,
                     keepalive=self.config.keepalive,
-                    identifier=self.config.client_id,
-                    # tls_insecure=self.config.ssl
+                    identifier=self.config.client_id + random.choice(["ID_1", "ID_2", "ID_3"])
                 ) as client:
                     self.client = client
                     self.connected.set()
@@ -220,7 +217,7 @@ class MQTTAdapter(CommunicationAdapter):
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"Error processing queued message: {str(e)}")
+                logger.error(f"Error processing queued message: {traceback.format_exc()}")
                 await asyncio.sleep(1)
 
     

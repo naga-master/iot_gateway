@@ -1,6 +1,7 @@
 from typing import Dict, Any, Optional
 import asyncio
 import traceback
+import json
 from ..adapters.i2c import I2CAdapter
 from ..adapters.mqtt import MQTTAdapter
 from ..storage.database import TemperatureStorage
@@ -23,8 +24,12 @@ class TemperatureMonitor:
         self.is_running = False
         self._sensor_read_lock = asyncio.Lock()  # Prevent concurrent sensor reads
 
+        
     async def initialize(self) -> None:
         logger.info("Initializing Temperature Monitor")
+        # Register handler for ack events
+        await self.event_manager.subscribe('temperature_ack', self.handle_temperature_ack)
+
         await self.storage.initialize()
 
         # Initialize I2C adapters for each configured bus
@@ -96,7 +101,7 @@ class TemperatureMonitor:
                                 "topic": f"temperature/{sensor.sensor_id}",
                                 "payload": reading.model_dump_json()
                             })
-                            reading.is_synced = True
+                            # reading.is_synced = True
                         except Exception as e:
                             logger.error(f"Failed to publish reading: {traceback.format_exc()}")
                             # Will be synced later
@@ -128,14 +133,36 @@ class TemperatureMonitor:
                             break  # Stop if MQTT is down
                     
                     # Mark successful syncs
-                    synced_ids = [r.sensor_id for r in unsynced if r.is_synced]
-                    if synced_ids:
-                        await self.storage.mark_as_synced(synced_ids)
+                    # synced_ids = [r.sensor_id for r in unsynced if r.is_synced]
+                    # if synced_ids:
+                    #     await self.storage.mark_as_synced(synced_ids)
 
             except Exception as e:
                 logger.error(f"error in sync loop: {traceback.format_exc()}")
             
             await asyncio.sleep(self.config['sync']["interval"])
+
+
+    async def handle_temperature_ack(self, topic: str, payload: Any) -> None:
+        """Handle acknowledgment messages for temperature readings"""
+        try:
+            # Extract sensor_id and reading_id from payload
+            print("Handler temperature Acknowledgement")
+            print(payload)
+            sensor_id = payload.get('sensor_id')
+            reading_id = payload.get('reading_id')
+            
+            if not all([sensor_id, reading_id]):
+                logger.error(f"Invalid acknowledgment payload: {payload}")
+                return
+            
+            # Mark the reading as synced in the database
+            await self.storage.mark_as_synced(sensor_id=sensor_id, reading_id=reading_id)
+            logger.info(f"Marked reading {reading_id} from sensor {sensor_id} as synced")
+
+        except Exception as e:
+            logger.error(f"Error handling temperature acknowledgment: {traceback.format_exc()}")
+
 
     async def stop(self) -> None:
         self.is_running = False

@@ -129,7 +129,8 @@ class IoTGatewayApp:
             await self.device_manager.initialize()
             
             # Initialize Communication Service
-            self.communication_service = CommunicationService(self.config)
+            self.communication_service = CommunicationService(self.config, 
+                                                              event_manager=self.event_manager)
             await self.communication_service.initialize()
             
             # Initialize Temperature Monitor

@@ -126,6 +126,7 @@ class TemperatureStorage:
                 CREATE TABLE IF NOT EXISTS temperature_readings (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     sensor_id TEXT NOT NULL,
+                    reading_id TEXT NOT NULL,
                     celsius REAL NOT NULL,
                     fahrenheit REAL NOT NULL,
                     timestamp TIMESTAMP NOT NULL,
@@ -149,14 +150,16 @@ class TemperatureStorage:
     async def store_reading(self, reading: TemperatureReading) -> None:
         """Store a single temperature reading in the database."""
         try:
+            print(reading)
             async with aiosqlite.connect(self.db_path) as db:
                 cursor = await db.cursor()
                 await cursor.execute('''
                     INSERT INTO temperature_readings 
-                    (sensor_id, celsius, fahrenheit, timestamp, is_synced)
-                    VALUES (?, ?, ?, ?, ?)
+                    (sensor_id, reading_id, celsius, fahrenheit, timestamp, is_synced)
+                    VALUES (?, ?, ?, ?, ?, ?)
                 ''', (
                     reading.sensor_id,
+                    reading.reading_id,
                     reading.celsius,
                     reading.fahrenheit,
                     reading.timestamp,
@@ -182,19 +185,39 @@ class TemperatureStorage:
 
                 return [TemperatureReading(**dict(row)) for row in rows]
 
-    async def mark_as_synced(self, reading_ids: List[int]) -> None:
+    async def bulk_mark_as_synced(self, sensor_ids: List[str], reading_ids: List[str]) -> None:
         """Mark multiple readings as synced by their IDs."""
         if not reading_ids:
             return
+        
+        if not sensor_ids:
+            return
             
         async with aiosqlite.connect(self.db_path) as db:
-            placeholders = ','.join('?' * len(reading_ids))
+            reading_ids_placeholders = ','.join('?' * len(reading_ids))
+            sensor_ids_placeholders = ','.join('?' * len(sensor_ids))
+
             await db.execute(
-                f'UPDATE temperature_readings SET is_synced = 1 WHERE sensor_id IN ({placeholders})',
-                reading_ids
+                f'UPDATE temperature_readings SET is_synced = 1 WHERE sensor_id IN ({sensor_ids_placeholders}) AND reading_id IN ({reading_ids_placeholders})',
+                sensor_ids_placeholders,
+                reading_ids_placeholders
             )
             await db.commit()
             logger.debug(f"Marked {len(reading_ids)} readings as synced")
+    
+    async def mark_as_synced(self, sensor_id: str, reading_id: str) -> None:
+        """Mark one sensor rading as synced by their ID"""
+        if not sensor_id or not reading_id:
+            return
+        
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                f'UPDATE temperature_readings SET is_synced = 1 WHERE sensor_id = ? AND reading_id = ?',
+                (sensor_id, reading_id)
+            )
+            await db.commit()
+            logger.debug(f"Marked {reading_id} reading as synced")
+
 
     async def get_readings(
         self, 

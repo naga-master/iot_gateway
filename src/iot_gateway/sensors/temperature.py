@@ -4,6 +4,7 @@ from typing import Dict, Any
 from ..adapters.base import I2CSensor
 from ..utils.logging import get_logger
 import traceback
+from ..utils.helpers import generate_msg_id
 
 logger = get_logger(__name__)
 
@@ -44,7 +45,8 @@ class TMP102Sensor(I2CSensor):
             return {
                 "sensor_id": self.sensor_id,
                 "celsius": round(temp_c, 2),
-                "fahrenheit": round(temp_f, 2)
+                "fahrenheit": round(temp_f, 2),
+                "reading_id": generate_msg_id(self.sensor_id)
             }
         except Exception as e:
             logger.error(f"Error reading TMP102 sensor {self.sensor_id}: {traceback.format_exc()}")
@@ -90,7 +92,8 @@ class SHT31Sensor(I2CSensor):
         return {
                 "sensor_id": self.sensor_id,
                 "celsius": round(temp_c, 2),
-                "fahrenheit": round(temp_f, 2)
+                "fahrenheit": round(temp_f, 2),
+                "reading_id": generate_msg_id(self.sensor_id)
             }
 
     async def get_config(self) -> Dict[str, Any]:
@@ -100,6 +103,7 @@ class SHT31Sensor(I2CSensor):
 
 class TemperatureReading(BaseModel):
     sensor_id: str
+    reading_id: str
     celsius: float
     fahrenheit: float
     timestamp: datetime = datetime.now()
