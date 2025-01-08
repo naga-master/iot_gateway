@@ -78,32 +78,6 @@ class MQTTAdapter(CommunicationAdapter):
                     except Exception as e:
                         logger.error(f"Failed to resubscribe to topic {topic}: {str(e)}")
                         self.pending_subscriptions.add(topic)
-
-    async def _handle_connection_lost(self) -> None:
-        """Handle connection loss and attempt reconnection"""
-        self.connected.clear()
-        logger.warning("Connection to MQTT broker lost")
-        
-        if not self._stop_flag.is_set():
-            self._reconnect_task = asyncio.create_task(self._reconnect())
-
-    async def _reconnect(self) -> None:
-        """Attempt to reconnect to MQTT broker"""
-        attempt = 0
-        while attempt < self.config.max_reconnect_attempts and not self._stop_flag.is_set():
-            try:
-                logger.info(f"Attempting to reconnect (attempt {attempt + 1}/{self.config.max_reconnect_attempts})")
-                await self._subscribe_topics()
-                self.pending_subscriptions.clear()
-                return
-            except Exception as e:
-                attempt += 1
-                logger.error(f"Reconnection attempt {attempt} failed: {str(e)}")
-                if attempt < self.config.max_reconnect_attempts:
-                    await asyncio.sleep(self.config.reconnect_interval)
-
-        logger.error("Max reconnection attempts reached")
-        await self.disconnect()
                 
     @staticmethod
     async def message_handler(topic: str, payload: Any):
@@ -156,8 +130,9 @@ class MQTTAdapter(CommunicationAdapter):
                 ) as client:
                     self.client = client
                     self.connected.set()
-                    await self._subscribe_topics()  # Add subscription here when connection is established
                     logger.info("Connected to MQTT broker")
+                    await self._subscribe_topics()  # Add subscription here when connection is established
+                   
                     try:
                         yield client
                     finally:
@@ -206,7 +181,6 @@ class MQTTAdapter(CommunicationAdapter):
             except Exception as e:
                 if not self._stop_flag.is_set():
                     logger.error(f"Error in message processing loop: {str(e)}")
-                    await self._handle_connection_lost()
 
     async def _process_message_queue(self) -> None:
         """Process messages from the queue"""
