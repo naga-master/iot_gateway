@@ -74,7 +74,6 @@ class CommunicationService:
         }
 
         # Add Acknowledgement handlers for all temperature sensors
-        print("Handler mapping", self.handler_mapping)
         for topic in self.communication_config['mqtt']['subscribe_topics']:
             # topic = topic_config['topic']
             # handler = topic_config.get('handler')            

@@ -23,3 +23,11 @@ class DeviceError(IoTGatewayError):
 class SensorError(IoTGatewayError):
     """Raised when there are issues with sensor operations"""
     pass
+
+class DatabaseError(Exception):
+    """Base exception for database errors"""
+    pass
+
+class ConnectionPoolError(DatabaseError):
+    """Exception for connection pool related errors"""
+    pass

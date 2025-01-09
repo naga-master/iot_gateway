@@ -4,33 +4,37 @@ import traceback
 import json
 from ..adapters.i2c import I2CAdapter
 from ..adapters.mqtt import MQTTAdapter
-from ..storage.database import TemperatureStorage
+# from ..storage.database import TemperatureStorage
 from ..sensors.temperature import TMP102Sensor, SHT31Sensor
-from ..sensors.temperature import TemperatureReading
+from ..models.things import TemperatureReading
 from ..core.communication_service import CommunicationService
 from ..utils.logging import get_logger
+from ..models.things import DeviceType
 
 logger = get_logger(__name__)
 
 class TemperatureMonitor:
-    def __init__(self, config: Dict[str, Any], event_manager, 
+    def __init__(self, config: Dict[str, Any], event_manager, db, dam,
                  mqtt: Optional[MQTTAdapter] = None):
         self.config = config
         self.event_manager = event_manager
         self.i2c_adapters: Dict[int, I2CAdapter] = {}  # Support multiple buses
         self.sensors = []
         self.mqtt = mqtt
-        self.storage = TemperatureStorage(self.config["database"]["path"])
+        self.dam = dam
+        # self.storage = TemperatureStorage(self.config["database"]["path"])
+        self.db = db
         self.is_running = False
         self._sensor_read_lock = asyncio.Lock()  # Prevent concurrent sensor reads
 
         
     async def initialize(self) -> None:
         logger.info("Initializing Temperature Monitor")
+
         # Register handler for ack events
         await self.event_manager.subscribe('temperature_ack', self.handle_temperature_ack)
 
-        await self.storage.initialize()
+        # await self.storage.initialize()
 
         # Initialize I2C adapters for each configured bus
         for sensor in self.config['sensors']['temperature']['i2c']:
@@ -61,6 +65,14 @@ class TemperatureMonitor:
                     sensor_config['address'],
                     sensor_config['id']
                 )
+                # First register the device
+                await self.db.register_device(
+                    device_id=sensor_config['id'],
+                    device_type=DeviceType.TEMPERATURE,
+                    name=f"Temperature Sensor {sensor_config['id']}",
+                    location="Room 1"
+                )
+
                 await sensor.initialize()
                 self.sensors.append(sensor)
                 logger.info(f"Initialized sensor {sensor_config['id']} on bus {bus_number}")
@@ -88,17 +100,17 @@ class TemperatureMonitor:
                 for sensor in self.sensors:
                     # Read sensor
                     data = await sensor.read_data()
-                    
                     # Create reading
                     reading = TemperatureReading(
                         **data
                     )
-                    print(data)
+                    print(reading)
+                    
                     if self.mqtt.connected.is_set():
                         # Publish reading
                         try:
                             await self.mqtt.write_data({
-                                "topic": f"temperature/{sensor.sensor_id}",
+                                "topic": f"temperature/{reading.device_id}",
                                 "payload": reading.model_dump_json()
                             })
                             # reading.is_synced = True
@@ -107,7 +119,8 @@ class TemperatureMonitor:
                             # Will be synced later
 
                     # Store reading
-                    await self.storage.store_reading(reading)
+                    await self.db.repositories['temperature'].store_reading(reading)
+                    # await self.storage.store_reading(reading)
 
                 await asyncio.sleep(self.config['sensors']['temperature']['reading_interval'])
             except Exception as e:
@@ -117,14 +130,16 @@ class TemperatureMonitor:
     async def sync_stored_readings(self) -> None:
         while self.is_running:
             try:
-                unsynced = await self.storage.get_unsynced_readings()
-                if unsynced:
-                    logger.info(f"Syncing {len(unsynced)} stored readings")
-                    for reading in unsynced:
+                # Get unsynced readings
+                unsynced = await self.db.sync_manager.get_all_unsynced_readings()
+                unsynced_temp_data = unsynced.get('temperature')
+                if unsynced_temp_data:
+                    logger.info(f"Syncing {len(unsynced_temp_data)} stored readings")
+                    for reading in unsynced_temp_data:
                         try:
                             if self.mqtt.connected.is_set():
                                 await self.mqtt.write_data({
-                                    "topic": f"temperature/{reading.sensor_id}",
+                                    "topic": f"temperature/{reading.device_id}",
                                     "payload": reading.model_dump_json()
                                 })
                                 reading.is_synced = True
@@ -148,8 +163,7 @@ class TemperatureMonitor:
         try:
             # Extract sensor_id and reading_id from payload
             print("Handler temperature Acknowledgement")
-            print(payload)
-            sensor_id = payload.get('sensor_id')
+            sensor_id = payload.get('device_id')
             reading_id = payload.get('reading_id')
             
             if not all([sensor_id, reading_id]):
@@ -157,7 +171,11 @@ class TemperatureMonitor:
                 return
             
             # Mark the reading as synced in the database
-            await self.storage.mark_as_synced(sensor_id=sensor_id, reading_id=reading_id)
+            # Mark as synced
+            await self.db.repositories['temperature'].mark_as_synced(
+                device_id=sensor_id,
+                reading_id=reading_id
+            )
             logger.info(f"Marked reading {reading_id} from sensor {sensor_id} as synced")
 
         except Exception as e:
@@ -169,6 +187,6 @@ class TemperatureMonitor:
         for sensor in self.sensors:
             if hasattr(sensor, "disconnect"):
                 await sensor.disconnect()
-
+        
         logger.info("Temperature monitor stopped")
 

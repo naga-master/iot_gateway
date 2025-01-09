@@ -1,5 +1,3 @@
-from datetime import datetime
-from pydantic import BaseModel, field_validator
 from typing import Dict, Any
 from ..adapters.base import I2CSensor
 from ..utils.logging import get_logger
@@ -43,7 +41,7 @@ class TMP102Sensor(I2CSensor):
             
             logger.debug(f"Sensor {self.sensor_id} read: {temp_c}°C / {temp_f}°F")
             return {
-                "sensor_id": self.sensor_id,
+                "device_id": self.sensor_id,
                 "celsius": round(temp_c, 2),
                 "fahrenheit": round(temp_f, 2),
                 "reading_id": generate_msg_id(self.sensor_id)
@@ -59,7 +57,7 @@ class TMP102Sensor(I2CSensor):
 
         config = True
         return {
-            "sensor_id": self.sensor_id,
+            "device_id": self.sensor_id,
             "resolution": "12-bit" if config & 0x60 else "13-bit",
             "address": self.address
         }
@@ -90,7 +88,7 @@ class SHT31Sensor(I2CSensor):
         
         logger.debug(f"Sensor {self.sensor_id} read: {temp_c}°C / {temp_f}°F")
         return {
-                "sensor_id": self.sensor_id,
+                "device_id": self.sensor_id,
                 "celsius": round(temp_c, 2),
                 "fahrenheit": round(temp_f, 2),
                 "reading_id": generate_msg_id(self.sensor_id)
@@ -99,24 +97,3 @@ class SHT31Sensor(I2CSensor):
     async def get_config(self) -> Dict[str, Any]:
         # Implementation for SHT31
         pass
-
-
-class TemperatureReading(BaseModel):
-    sensor_id: str
-    reading_id: str
-    celsius: float
-    fahrenheit: float
-    timestamp: datetime = datetime.now()
-    is_synced: bool = False
-
-    @field_validator('celsius')
-    def validate_celsius(cls, v):
-        if not -40 <= v <= 125:  # Common I2C temperature sensor range
-            raise ValueError(f"Temperature {v}°C is out of valid range")
-        return round(v, 2)
-
-    @field_validator('fahrenheit')
-    def validate_fahrenheit(cls, v):
-        if not -40 <= v <= 257:  # Converted range
-            raise ValueError(f"Temperature {v}°F is out of valid range")
-        return round(v, 2)

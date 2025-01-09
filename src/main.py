@@ -5,7 +5,6 @@ import sys
 import yaml
 from pathlib import Path
 from typing import Dict, Any, Optional
-from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from hypercorn.asyncio import serve
 from hypercorn.config import Config as HyperConfig
@@ -20,6 +19,7 @@ from iot_gateway.api.routes import temp_router
 from iot_gateway.api.endpoints.devices import device_router
 from iot_gateway.utils.logging import setup_logging, get_logger
 from iot_gateway.utils.exceptions import ConfigurationError, InitializationError
+from iot_gateway.storage.sensor_database import SensorDatabase
 
 class ConfigManager:
     """Manages configuration loading and validation"""
@@ -108,6 +108,8 @@ class IoTGatewayApp:
         self.shutdown_event = asyncio.Event()
         self.event_manager = EventManager()
         self.api_server = APIServer(self.config, self.shutdown_event)
+        self.dam = None
+        self.da = None
         
         # Components to be initialized later
         self.temperature_monitor = None
@@ -127,6 +129,10 @@ class IoTGatewayApp:
                 self.config['devices']
             )
             await self.device_manager.initialize()
+
+            # Initialize database
+            self.db = SensorDatabase(self.config['database']['path'], max_connections=10)
+            await self.db.initialize()
             
             # Initialize Communication Service
             self.communication_service = CommunicationService(self.config, 
@@ -137,6 +143,8 @@ class IoTGatewayApp:
             self.temperature_monitor = TemperatureMonitor(
                 self.config,
                 self.event_manager,
+                self.db,
+                self.dam,
                 self.communication_service.mqtt
             )
             await self.temperature_monitor.initialize()
@@ -170,6 +178,8 @@ class IoTGatewayApp:
                 await self.communication_service.shutdown()
             # if self.device_manager:
             #     await self.device_manager.shutdown()
+
+            await self.db.close()
             
             self.shutdown_event.set()
             self.logger.info("Shutdown completed successfully")

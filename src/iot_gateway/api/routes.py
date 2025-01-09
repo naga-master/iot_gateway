@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from typing import List, Optional
 from datetime import datetime, timedelta
 from ..storage.database import TemperatureStorage
-from ..sensors.temperature import TemperatureReading
+from ..models.things import TemperatureReading
 
 temp_router = APIRouter()
 
