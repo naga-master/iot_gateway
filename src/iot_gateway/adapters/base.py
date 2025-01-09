@@ -53,6 +53,58 @@ class I2CSensor(ABC):
         pass
 
 
+class CANSensor(ABC):
+    """
+    Base class for all CAN sensors.
+    Each sensor type should implement this interface.
+    """
+    def __init__(self, can_adapter, arbitration_id: int, sensor_id: str):
+        self.can = can_adapter
+        self.arbitration_id = arbitration_id
+        self.sensor_id = sensor_id
+
+    @abstractmethod
+    async def initialize(self) -> None:
+        """Initialize the sensor with required settings."""
+        pass
+
+    @abstractmethod
+    async def read_data(self) -> Dict[str, Any]:
+        """Read and return processed sensor data."""
+        pass
+
+    @abstractmethod
+    async def get_config(self) -> Dict[str, Any]:
+        """Get current sensor configuration."""
+        pass
+
+
+class ModbusSensor(ABC):
+    """
+    Base class for all Modbus sensors.
+    Each sensor type should implement this interface.
+    """
+    def __init__(self, modbus_adapter, slave_address: int, sensor_id: str):
+        self.modbus = modbus_adapter
+        self.slave_address = slave_address
+        self.sensor_id = sensor_id
+
+    @abstractmethod
+    async def initialize(self) -> None:
+        """Initialize the sensor with required settings."""
+        pass
+
+    @abstractmethod
+    async def read_data(self) -> Dict[str, Any]:
+        """Read and return processed sensor data."""
+        pass
+
+    @abstractmethod
+    async def get_config(self) -> Dict[str, Any]:
+        """Get current sensor configuration."""
+        pass
+
+
 class BaseDevice(ABC):
     """Base class for all device implementations"""
     def __init__(self, device_id: str, config: Dict[str, Any]):
