@@ -142,19 +142,14 @@ class TemperatureMonitor:
                                     "topic": f"temperature/{reading.device_id}",
                                     "payload": reading.model_dump_json()
                                 })
-                                reading.is_synced = True
                         except Exception as e:
                             logger.error(f"Failed to sync reading: {traceback.format_exc()}")
                             break  # Stop if MQTT is down
-                    
-                    # Mark successful syncs
-                    # synced_ids = [r.sensor_id for r in unsynced if r.is_synced]
-                    # if synced_ids:
-                    #     await self.storage.mark_as_synced(synced_ids)
 
             except Exception as e:
                 logger.error(f"error in sync loop: {traceback.format_exc()}")
             
+            logger.info(f'Syncing will happen after {self.config["sync"]["interval"]} seconds')
             await asyncio.sleep(self.config['sync']["interval"])
 
 
@@ -176,7 +171,7 @@ class TemperatureMonitor:
                 device_id=sensor_id,
                 reading_id=reading_id
             )
-            logger.info(f"Marked reading {reading_id} from sensor {sensor_id} as synced")
+            # logger.info(f"Marked reading {reading_id} from sensor {sensor_id} as synced")
 
         except Exception as e:
             logger.error(f"Error handling temperature acknowledgment: {traceback.format_exc()}")

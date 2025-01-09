@@ -162,7 +162,7 @@ class BaseRepository(ABC, Generic[T]):
                 '''
                 await conn.execute(query, (device_id, reading_id))
                 await conn.commit()
-                logger.debug(f"Marked reading {reading_id} as synced in {self.table_name}")
+                logger.info(f"Marked reading {reading_id} as synced in {self.table_name}")
         except Exception as e:
             logger.error(f"Failed to mark reading as synced in {self.table_name}: {e}")
             raise DatabaseError(f"Failed to mark reading as synced: {e}")

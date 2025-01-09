@@ -1459,7 +1459,7 @@ class TemperatureStorage:
         async with aiosqlite.connect(self.db_path) as db:
             placeholders = ','.join('?' * len(reading_ids))
             await db.execute(
-                f'UPDATE temperature_readings SET is_synced = 1 WHERE sensor_id IN ({placeholders})',
+                f'UPDATE temperature_readings SET is_synced = 1 WHERE device_id IN ({placeholders})',
                 reading_ids
             )
             await db.commit()
