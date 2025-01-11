@@ -29,6 +29,7 @@ sync:
 # config.yml
 communication:
   mqtt:
+    enabled: true
     host: "broker.emqx.io"
     port: 1883
     username: "user"
@@ -45,19 +46,23 @@ communication:
       - temperature/ack
   # Future communication configs
   # wifi:
+  #   enabled: true
   #   ssid: "network"
   #   password: "pass"
 
 devices:
   bulb1:
+    enabled: true
     type: "bulb"
     pin: 5
     initial: false
   plug1:
+    enabled: true
     type: "smart_plug"
     pin: 6
     initial: false
   device3:
+    enabled: true
     type: "new_device"
     # device-specific config
 

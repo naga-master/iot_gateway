@@ -35,7 +35,7 @@ class CommunicationService:
     async def initialize(self) -> None:
         logger.info(f"Initializing Communication Service")
         # Initialize MQTT
-        if 'mqtt' in self.communication_config:
+        if 'mqtt' in self.communication_config and self.communication_config['mqtt']['enabled']:
             try:
                 self.mqtt = MQTTAdapter(self.communication_config['mqtt'])
                 await self.mqtt.connect()

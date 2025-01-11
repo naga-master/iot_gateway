@@ -38,44 +38,46 @@ class TemperatureMonitor:
 
         # Initialize I2C adapters for each configured bus
         for sensor in self.config['sensors']['temperature']['i2c']:
-            bus_number = sensor['bus_number']
-            adapter = I2CAdapter(bus_number)
-            try:
-                await adapter.connect()
-                self.i2c_adapters[bus_number] = adapter
-            except Exception as e:
-                logger.error(f"Failed to initialize I2C bus {bus_number}: {e}")
-                continue
+            if sensor['enabled']:
+                bus_number = sensor['bus_number']
+                adapter = I2CAdapter(bus_number)
+                try:
+                    await adapter.connect()
+                    self.i2c_adapters[bus_number] = adapter
+                except Exception as e:
+                    logger.error(f"Failed to initialize I2C bus {bus_number}: {e}")
+                    continue
 
         # Initialize sensors
         for sensor_config in self.config['sensors']['temperature']['i2c']:
             try:
-                bus_number = sensor_config.get('bus_number', 1)  # Default to bus 1
-                if bus_number not in self.i2c_adapters:
-                    logger.error(f"I2C bus {bus_number} not available for sensor {sensor_config['id']}")
-                    continue
+                if sensor['enabled']:
+                    bus_number = sensor_config.get('bus_number', 1)  # Default to bus 1
+                    if bus_number not in self.i2c_adapters:
+                        logger.error(f"I2C bus {bus_number} not available for sensor {sensor_config['id']}")
+                        continue
 
-                sensor_class = self._get_sensor_class(sensor_config['type'])
-                if not sensor_class:
-                    logger.error(f"Unknown sensor type: {sensor_config['type']}")
-                    continue
+                    sensor_class = self._get_sensor_class(sensor_config['type'])
+                    if not sensor_class:
+                        logger.error(f"Unknown sensor type: {sensor_config['type']}")
+                        continue
 
-                sensor = sensor_class(
-                    self.i2c_adapters[bus_number],
-                    sensor_config['address'],
-                    sensor_config['id']
-                )
-                # First register the device
-                await self.db.register_device(
-                    device_id=sensor_config['id'],
-                    device_type=DeviceType.TEMPERATURE,
-                    name=f"Temperature Sensor {sensor_config['id']}",
-                    location="Room 1"
-                )
+                    sensor = sensor_class(
+                        self.i2c_adapters[bus_number],
+                        sensor_config['address'],
+                        sensor_config['id']
+                    )
+                    # First register the device
+                    await self.db.register_device(
+                        device_id=sensor_config['id'],
+                        device_type=DeviceType.TEMPERATURE,
+                        name=f"Temperature Sensor {sensor_config['id']}",
+                        location="Room 1"
+                    )
 
-                await sensor.initialize()
-                self.sensors.append(sensor)
-                logger.info(f"Initialized sensor {sensor_config['id']} on bus {bus_number}")
+                    await sensor.initialize()
+                    self.sensors.append(sensor)
+                    logger.info(f"Initialized sensor {sensor_config['id']} on bus {bus_number}")
             except Exception as e:
                 logger.error(f"Failed to initialize sensor {sensor_config['id']}: {e}")
 

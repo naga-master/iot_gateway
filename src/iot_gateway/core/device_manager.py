@@ -54,15 +54,16 @@ class DeviceManager:
         """Initialize all configured devices"""
         for device_name, config in self.device_config.items():
             try:
-                device = DeviceFactory.create_device(
-                    device_type=config["type"],
-                    device_id=device_name,
-                    config=config,
-                    gpio_adapter=self.gpio_adapter
-                )
-                await device.initialize()
-                self.devices[device_name] = device
-                logger.info(f"Initialized device: {device_name}")
+                if config['enabled']:
+                    device = DeviceFactory.create_device(
+                        device_type=config["type"],
+                        device_id=device_name,
+                        config=config,
+                        gpio_adapter=self.gpio_adapter
+                    )
+                    await device.initialize()
+                    self.devices[device_name] = device
+                    logger.info(f"Initialized device: {device_name}")
             except Exception as e:
                 logger.error(f"Failed to initialize device {device_name}: {e}")
 
