@@ -9,11 +9,12 @@ database:
   vacuum_interval: 86400  # Daily vacuum for optimization
 
 sync:
-  interval: 300  # sync interval in seconds
+  interval: 30  # sync interval in seconds
   batch_size: 100
   error_retry_interval: 60
   cache_size: 1000
   cache_expiry: 3600
+  periodic_sync: false
   protocols:
     mqtt:
       enabled: true
@@ -44,6 +45,7 @@ communication:
       - devices/smart_plug/plug1/command
       - gateway/#
       - temperature/ack
+      - temperature/sync
   # Future communication configs
   # wifi:
   #   enabled: true

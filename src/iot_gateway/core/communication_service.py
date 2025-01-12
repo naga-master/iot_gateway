@@ -69,7 +69,8 @@ class CommunicationService:
         self.handler_mapping = {
             'devices/smart_plug/plug1/command': self.handlers.smart_plug_handler,
             'gateway/#': MQTTAdapter.message_handler,
-            'temperature/ack': self.handlers.temperature_ack_handler
+            'temperature/ack': self.handlers.temperature_ack_handler,
+            'temperature/sync': self.handlers.temperature_sync_handler
             # Add more mappings as needed
         }
 

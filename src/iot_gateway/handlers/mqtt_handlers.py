@@ -51,8 +51,6 @@ class MQTTMessageHandlers:
                 logger.error(f"Unknown command: {command_str}")
                 return
                 
-            
-            
             # Extract additional parameters if any
             params = payload.get('params', {})
 
@@ -84,6 +82,11 @@ class MQTTMessageHandlers:
     async def temperature_ack_handler(self, topic: str, payload: Any) -> None:
         """Forward temperature acks to event manager"""
         for callback in self.event_manager.subscribers.get("temperature_ack"):
+            await callback(topic, payload)
+
+    async def temperature_sync_handler(self, topic: str, payload: Any) -> None:
+        """Forward temperature sync to event manager"""
+        for callback in self.event_manager.subscribers.get("sync_temperature"):
             await callback(topic, payload)
         
     @staticmethod
