@@ -11,7 +11,7 @@ database:
 sync:
   interval: 30  # sync interval in seconds
   batch_size: 100
-  error_retry_interval: 60
+  error_retry_interval: 5
   cache_size: 1000
   cache_expiry: 3600
   periodic_sync: false
@@ -75,6 +75,10 @@ devices:
 #       type: "output"
 #       initial: false
 
+system:
+  device_id: "iot_gateway"
+  heart_beat_interval: 60
+  heart_beat_topic_prefix: "iot_gateway"
 
 sensors:
   temperature:

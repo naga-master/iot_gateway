@@ -1,5 +1,6 @@
 from ..storage.database import ConnectionPool
 from ..storage.temp_db import TemperatureRepository
+from ..storage.device_stats import SystemMonitorRepository
 from ..storage.sync_manager import SyncManager
 from ..models.things import DeviceType
 from ..utils.logging import get_logger
@@ -21,6 +22,7 @@ class SensorDatabase:
     def _setup_repositories(self):
         """Initialize all repository instances"""
         self.repositories['temperature'] = TemperatureRepository(self.pool)
+        self.repositories['system'] = SystemMonitorRepository(self.pool)
         # Add other repositories as needed
         # self.repositories['humidity'] = HumidityRepository(self.pool)
         # self.repositories['smart_plug'] = SmartPlugRepository(self.pool)

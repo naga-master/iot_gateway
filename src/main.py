@@ -13,6 +13,7 @@ import traceback
 from iot_gateway.core.event_manager import EventManager
 from iot_gateway.core.device_manager import DeviceManager
 from iot_gateway.core.temperature_monitor import TemperatureMonitor
+from iot_gateway.core.heartbeat import SystemMonitor
 from iot_gateway.adapters.gpio import GPIOAdapter
 from iot_gateway.core.communication_service import CommunicationService
 from iot_gateway.api.routes import temp_router
@@ -108,13 +109,13 @@ class IoTGatewayApp:
         self.shutdown_event = asyncio.Event()
         self.event_manager = EventManager()
         self.api_server = APIServer(self.config, self.shutdown_event)
-        self.dam = None
-        self.da = None
+        self.db = None
         
         # Components to be initialized later
         self.temperature_monitor = None
         self.communication_service = None
         self.device_manager = None
+        self.system_monitor = None
 
     async def initialize_components(self):
         """Initialize all application components"""
@@ -144,10 +145,18 @@ class IoTGatewayApp:
                 self.config,
                 self.event_manager,
                 self.db,
-                self.dam,
                 self.communication_service.mqtt
             )
             await self.temperature_monitor.initialize()
+
+            # Initialize System Monitoring
+            self.system_monitor = SystemMonitor(
+                config=self.config,
+                db=self.db,
+                mqtt=self.communication_service.mqtt
+            )
+            await self.system_monitor.initialize()
+
             
             self.logger.info("All components initialized successfully")
         except Exception as e:
@@ -176,10 +185,11 @@ class IoTGatewayApp:
                 await self.temperature_monitor.stop()
             if self.communication_service:
                 await self.communication_service.shutdown()
-            # if self.device_manager:
-            #     await self.device_manager.shutdown()
+            if self.system_monitor:
+                await self.system_monitor.stop()
 
-            await self.db.close()
+            if self.db:
+                await self.db.close()
             
             self.shutdown_event.set()
             self.logger.info("Shutdown completed successfully")
@@ -206,6 +216,7 @@ class IoTGatewayApp:
             # gather will not stop all the functions if anyone of the function failed, which is expected here.
             await asyncio.gather(
                 self.start_temperature_monitoring(),
+                self.system_monitor.start_monitoring(),
                 self.api_server.start()
             )
         except InitializationError as e:

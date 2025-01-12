@@ -11,6 +11,7 @@ class DeviceType(Enum):
     CAMERA = "camera"
     LIGHT = "light"
     HEARTBEAT = "heartbeat"
+    GATEWAY = "gateway"
 
 
 class BaseReading(BaseModel):
@@ -20,18 +21,15 @@ class BaseReading(BaseModel):
     is_synced: bool = False
 
 
-@dataclass
+class HearBeat(BaseReading):
+    temperature: str
+    available_memory: str
+    cpu_usage : str
+
+
 class HumidityReading(BaseReading):
     humidity: float
 
-
-@dataclass
-class HeartbeatReading(BaseReading):
-    status: str
-    latency_ms: float
-
-
-@dataclass
 class SmartPlugReading(BaseReading):
     power_watts: float
     voltage: float

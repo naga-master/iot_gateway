@@ -1,28 +1,23 @@
 from typing import Dict, Any, Optional
 import asyncio
 import traceback
-import json
 from ..adapters.i2c import I2CAdapter
 from ..adapters.mqtt import MQTTAdapter
-# from ..storage.database import TemperatureStorage
 from ..sensors.temperature import TMP102Sensor, SHT31Sensor
 from ..models.things import TemperatureReading
-from ..core.communication_service import CommunicationService
 from ..utils.logging import get_logger
 from ..models.things import DeviceType
 
 logger = get_logger(__name__)
 
 class TemperatureMonitor:
-    def __init__(self, config: Dict[str, Any], event_manager, db, dam,
+    def __init__(self, config: Dict[str, Any], event_manager, db,
                  mqtt: Optional[MQTTAdapter] = None):
         self.config = config
         self.event_manager = event_manager
         self.i2c_adapters: Dict[int, I2CAdapter] = {}  # Support multiple buses
         self.sensors = []
         self.mqtt = mqtt
-        self.dam = dam
-        # self.storage = TemperatureStorage(self.config["database"]["path"])
         self.db = db
         self.is_running = False
         self._sensor_read_lock = asyncio.Lock()  # Prevent concurrent sensor reads
@@ -52,7 +47,8 @@ class TemperatureMonitor:
         # Initialize sensors
         for sensor_config in self.config['sensors']['temperature']['i2c']:
             try:
-                if sensor['enabled']:
+
+                if sensor_config['enabled']:
                     bus_number = sensor_config.get('bus_number', 1)  # Default to bus 1
                     if bus_number not in self.i2c_adapters:
                         logger.error(f"I2C bus {bus_number} not available for sensor {sensor_config['id']}")
@@ -80,7 +76,7 @@ class TemperatureMonitor:
                     self.sensors.append(sensor)
                     logger.info(f"Initialized sensor {sensor_config['id']} on bus {bus_number}")
             except Exception as e:
-                logger.error(f"Failed to initialize sensor {sensor_config['id']}: {e}")
+                logger.error(f"Failed to initialize sensor {sensor_config['id']}: {traceback.format_exc()}")
 
         if not self.sensors:
             logger.warning("No sensors were successfully initialized")
@@ -119,7 +115,6 @@ class TemperatureMonitor:
                             # reading.is_synced = True
                         except Exception as e:
                             logger.error(f"Failed to publish reading: {traceback.format_exc()}")
-                            # Will be synced later
 
                     # Store reading
                     await self.db.repositories['temperature'].store_reading(reading)
@@ -128,7 +123,7 @@ class TemperatureMonitor:
                 await asyncio.sleep(self.config['sensors']['temperature']['reading_interval'])
             except Exception as e:
                 logger.error(f"Error in monitoring loop: {traceback.format_exc()}")
-                await asyncio.sleep(5)  # Wait before retry
+                await asyncio.sleep(self.config['sync']['error_retry_interval'])  # Wait before retry
 
     async def sync_stored_readings(self, internal_sync_call:bool = False) -> None:
         if not self.config['sync']['periodic_sync']:
