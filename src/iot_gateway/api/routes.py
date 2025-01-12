@@ -1,20 +1,24 @@
+# src/iot_gateway/api/routes.py
 from fastapi import APIRouter, HTTPException
 from typing import List, Optional
 from datetime import datetime, timedelta
-from ..storage.database import TemperatureStorage
 from ..models.things import TemperatureReading
+from .dependencies import DBDependency
 
 temp_router = APIRouter()
 
-@temp_router.get("/temperature/{sensor_id}")
+@temp_router.get(
+    "/temperature/{sensor_id}",
+    response_model=List[TemperatureReading]
+)
 async def get_temperature_readings(
     sensor_id: str,
     start_time: Optional[datetime] = None,
-    end_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None,
+    db: DBDependency = None
 ) -> List[TemperatureReading]:
     try:
-        storage = TemperatureStorage("sensors.db")  # Should use DI in real app
-        readings = await storage.get_readings(
+        readings = await db.repositories['temperature'].get_readings(
             sensor_id,
             start_time or datetime.now() - timedelta(hours=24),
             end_time or datetime.now()
