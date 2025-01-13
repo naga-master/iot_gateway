@@ -47,6 +47,8 @@ class MQTTConfig(BaseModel):
     client_key: Optional[str] = Field(None, description="Required if client_cert is set")
     verify_hostname: bool = Field(True, description="Verify broker's hostname")
     tls_version: Optional[str] = Field(None, description="TLS1_2, TLS1_3, etc.")
+    subscribe_qos: int =  Field(0, description="qos for subscribe topics")
+    publish_qos: int =  Field(0, description="qos for publish message")
 
 class MQTTMessage(BaseModel):
     """MQTT message model"""
@@ -79,7 +81,7 @@ class MQTTAdapter(CommunicationAdapter):
             for topic, handlers in self.message_handlers.items():
                 if self.client:
                     try:
-                        await self.client.subscribe(topic)
+                        await self.client.subscribe(topic, qos=self.config.subscribe_qos)
                         logger.info(f"Resubscribed to topic: {topic}")
                     except Exception as e:
                         logger.error(f"Failed to resubscribe to topic {topic}: {str(e)}")

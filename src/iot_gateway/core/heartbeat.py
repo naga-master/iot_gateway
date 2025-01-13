@@ -48,7 +48,8 @@ class SystemMonitor:
                 try:
                     await self.mqtt.write_data({
                         "topic": f"{self.config['system']['heart_beat_topic_prefix']}/{self.device_id}",
-                        "payload": self.metrics.model_dump_json()
+                        "payload": self.metrics.model_dump_json(),
+                        "qos": self.mqtt.config.publish_qos
                     })
 
                     # Store the metrics into db

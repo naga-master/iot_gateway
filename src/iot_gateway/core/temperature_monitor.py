@@ -103,14 +103,15 @@ class TemperatureMonitor:
                     reading = TemperatureReading(
                         **data
                     )
-                    print(reading)
+                    logger.info(reading)
                     
                     if self.mqtt.connected.is_set():
                         # Publish reading
                         try:
                             await self.mqtt.write_data({
                                 "topic": f"temperature/{reading.device_id}",
-                                "payload": reading.model_dump_json()
+                                "payload": reading.model_dump_json(),
+                                "qos": self.mqtt.config.publish_qos
                             })
                             # reading.is_synced = True
                         except Exception as e:
@@ -164,7 +165,8 @@ class TemperatureMonitor:
                         
                         await self.mqtt.write_data({
                             "topic": send_topic,
-                            "payload": sensor_data
+                            "payload": sensor_data,
+                            "qos": self.mqtt.config.publish_qos
                         })
 
                 except Exception as e:

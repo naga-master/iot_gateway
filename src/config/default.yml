@@ -43,6 +43,8 @@ communication:
     max_reconnect_attempts: 5
     message_queue_size: 1000
     connection_timeout: 100
+    subscribe_qos: 0
+    publish_qos: 0
     ssl: false
     ca_cert: "/path/to/ca.crt"  # Optional: Custom CA certificate
     client_cert: "/path/to/client.crt"  # Optional: Client certificate
