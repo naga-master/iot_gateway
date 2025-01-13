@@ -91,6 +91,97 @@ Type: subscribe
 Topic : temperature/sensor1
 Payload : {"device_id":"sensor1","reading_id":"sensor1_20250112114049406364_751","timestamp":"2025-01-12T11:40:46.950790","is_synced":false,"celsius":72.39,"fahrenheit":162.31}
 ```
+### API Documentation
+- **Control Devices**: POST /api/v1/devices/{device_id}/control
+- **Get Command Status**: GET /api/v1/devices/{device_id}/commands/{command_id}
+- **Get Temperature Readings**: GET /api/v1/temperature/{sensor_id}
+
+Contributing
+See CONTRIBUTING.md for guidelines.
+
+License
+This project is licensed under the MIT License. See LICENSE for details.
+
+
+---
+
+## **Code of Conduct**
+
+```markdown
+# Code of Conduct
+
+## Our Pledge
+We pledge to foster an open and welcoming environment for all contributors.
+
+## Our Standards
+- Be respectful and inclusive.
+- Use welcoming and inclusive language.
+- Accept constructive criticism gracefully.
+- Focus on what is best for the community.
+
+## Enforcement
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project maintainers.
+
+## Attribution
+This Code of Conduct is adapted from the [Contributor Covenant](https://www.contributor-covenant.org/).
+```
+
+Contributing
+markdown
+# Contributing
+
+We welcome contributions! Here’s how you can help:
+
+1. Fork the repository.
+2. Create a new branch:
+   ```bash
+   git checkout -b feature/your-feature
+3. Make your changes and commit them:
+
+    ```bash
+    git commit -m "Add your feature"
+    ```
+4. Push your changes:
+    ```bash
+    git push origin feature/your-feature
+    ```
+
+5. Open a pull request.
+
+## Guidelines
+- Follow the existing code style.
+- Write clear commit messages.
+- Add tests for new features.
+- Update documentation as needed.
+
+
+---
+
+## **License**
+
+```markdown
+# MIT License
+
+Copyright (c) 2024 NAGARAJ S
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
 ## Conclusion
 
