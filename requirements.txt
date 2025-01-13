@@ -8,8 +8,10 @@ aiosqlite         0.20.0
 annotated-types   0.7.0
 anyio             4.7.0
 attrs             24.3.0
+colorzero         1.1
 fastapi           0.115.6
 frozenlist        1.5.0
+gpiozero          2.0.1
 h11               0.14.0
 h2                4.1.0
 hpack             4.0.0
@@ -21,6 +23,7 @@ paho-mqtt         2.1.0
 pip               24.3.1
 priority          2.0.0
 propcache         0.2.1
+psutil            6.1.1
 pydantic          2.10.4
 pydantic_core     2.27.2
 PyYAML            6.0.2
