@@ -35,14 +35,17 @@ Develop your feature or fix, ensuring adherence to the project's coding standard
 4. Commit Changes:
 Write clear and concise commit messages. We use Conventional Commits to automate versioning:
 
+```bash
 git commit -m "feat: add support for new sensor integration"
+```
 
 
 5. Push to Your Fork:
 Push your changes to your forked repository:
 
+```bash
 git push origin feature/your-feature-name
-
+```
 
 6. Open a Pull Request:
 Navigate to the main repository and open a Pull Request (PR) from your feature branch. Provide a detailed description of your changes and reference any related issues.
