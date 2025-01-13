@@ -6,6 +6,8 @@ database:
   # path: "/var/lib/sensor_data/sensors.db"
   path: sensors.db
   pool_size: 5
+  retention_days: 30
+  db_cleanup_check_interval: 86400 # 24 hours in seconds
   vacuum_interval: 86400  # Daily vacuum for optimization
 
 sync:

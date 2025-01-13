@@ -79,7 +79,8 @@ class SystemMonitor:
             reading_id=str(uuid.uuid4()),
             temperature=temperature,
             available_memory=available_memory,
-            cpu_usage=cpu_usage
+            cpu_usage=cpu_usage,
+            is_synced=True # set always true for now
         )
         
         return reading

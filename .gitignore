@@ -12,3 +12,4 @@ iot_gateway.log
 *.db-shm
 *.db-wal
 sensors.db
+/*/.DS_Store

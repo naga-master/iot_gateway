@@ -140,7 +140,9 @@ class IoTGatewayApp:
             await self.app_state.device_manager.initialize()
 
             # Initialize database
-            self.app_state.db = SensorDatabase(self.config['database']['path'], max_connections=10)
+            self.app_state.db = SensorDatabase(self.config['database']['path'], 
+                                               max_connections=self.config['database']['pool_size'],
+                                               retention_days=self.config['database']['retention_days'])
             await self.app_state.db.initialize()
             
             # Initialize Communication Service

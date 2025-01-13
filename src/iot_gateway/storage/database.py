@@ -6,7 +6,6 @@ from datetime import datetime
 from abc import ABC, abstractmethod
 
 from ..utils.logging import get_logger
-from ..models.things import TemperatureReading
 from ..utils.exceptions import ConnectionPoolError, DatabaseError
 
 

@@ -6,18 +6,22 @@ from ..models.things import DeviceType
 from ..utils.logging import get_logger
 from ..utils.exceptions import DatabaseError
 from typing import Optional
+from datetime import datetime, timedelta
+import asyncio
 
 logger = get_logger(__name__)
 
 class SensorDatabase:
     """Main database manager class"""
-    def __init__(self, db_path: str, max_connections: int = 5):
+    def __init__(self, db_path: str, max_connections: int = 5, retention_days: int = 30):
         self.pool = ConnectionPool(db_path, max_connections)
         self.repositories = {}
         self.sync_manager = SyncManager(self)
         self._setup_repositories()
         # Add other repositories as needed
-        self._retention_days = 30
+        self.retention_days = retention_days
+        self._cleanup_task = None
+        self._cleanup_running = False
 
     def _setup_repositories(self):
         """Initialize all repository instances"""
@@ -50,6 +54,11 @@ class SensorDatabase:
             await repo.create_table()
             await repo.create_indices()
 
+        # Start the cleanup task
+        self._cleanup_running = True
+        self._cleanup_task = asyncio.create_task(self._run_daily_cleanup())
+        logger.info("Started database cleanup task")
+
     async def register_device(self, device_id: str, device_type: DeviceType, name: str, location: Optional[str] = None) -> None:
         """Register a new device in the database."""
         try:
@@ -64,8 +73,74 @@ class SensorDatabase:
         except Exception as e:
             logger.error(f"Failed to register device: {e}")
             raise DatabaseError(f"Failed to register device: {e}")
+        
+    async def cleanup_old_data(self) -> None:
+        """Delete synced readings older than retention_days"""
+        cutoff_date = datetime.now() - timedelta(days=self.retention_days)
+        deleted_counts = {}
 
+        try:
+            async with self.pool.acquire() as conn:
+                for table_name, repo in self.repositories.items():
+                    query = f'''
+                        DELETE FROM {repo.table_name}
+                        WHERE is_synced = 1
+                        AND timestamp < ?
+                    '''
+                    cursor = await conn.execute(query, (cutoff_date,))
+                    deleted_counts[table_name] = cursor.rowcount
+                await conn.commit()
+
+            total_deleted = sum(deleted_counts.values())
+            logger.info(
+                f"Cleaned up {total_deleted} old records older than {self.retention_days} days: "
+                f"{', '.join(f'{k}: {v}' for k, v in deleted_counts.items())}"
+            )
+        except Exception as e:
+            logger.error(f"Failed to cleanup old data: {e}")
+            raise DatabaseError(f"Failed to cleanup old data: {e}")
+        
+    async def _run_daily_cleanup(self) -> None:
+        """Run the cleanup task daily"""
+        while self._cleanup_running:
+            try:
+                await self.cleanup_old_data()
+            except Exception as e:
+                logger.error(f"Error in cleanup task: {e}")
+            
+            try:
+                # Sleep for 24 hours, but check every minute if we should stop
+                for _ in range(24 * 60):  # 24 hours * 60 minutes
+                    if not self._cleanup_running:
+                        break
+                    await asyncio.sleep(60)  # 1 minute
+            except asyncio.CancelledError:
+                break
+
+
+    @property
+    def retention_days(self) -> int:
+        return self._retention_days
+    
+    @retention_days.setter
+    def retention_days(self, days: int) -> None:
+        if not isinstance(days, int) or days < 1:
+            raise ValueError("retention_days must be a positive integer")
+        self._retention_days = days
 
     async def close(self) -> None:
-        """Close all database connections"""
+        """Close all database connections and stop the cleanup task"""
+        logger.info("Shutting down database...")
+        
+        # Stop the cleanup task
+        self._cleanup_running = False
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
+            except asyncio.CancelledError:
+                pass
+            logger.info("Cleanup task stopped")
+
         await self.pool.close()
+        logger.info("Database connections closed")
