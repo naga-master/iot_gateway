@@ -9,6 +9,7 @@ from ..utils.logging import get_logger
 from ..utils.exceptions import CommunicationError
 from contextlib import asynccontextmanager
 import random
+import ssl
 
 logger = get_logger(__name__)
 
@@ -41,6 +42,11 @@ class MQTTConfig(BaseModel):
     reconnect_interval: float = Field(5.0, description="Reconnection interval in seconds")
     max_reconnect_attempts: int = Field(5, description="Maximum reconnection attempts")
     message_queue_size: int = Field(1000, description="Maximum size of message queue")
+    ca_cert: Optional[str] = Field(None, description="Custom CA certificate")
+    client_cert: Optional[str] = Field(None, description="Client certificate")
+    client_key: Optional[str] = Field(None, description="Required if client_cert is set")
+    verify_hostname: bool = Field(True, description="Verify broker's hostname")
+    tls_version: Optional[str] = Field(None, description="TLS1_2, TLS1_3, etc.")
 
 class MQTTMessage(BaseModel):
     """MQTT message model"""
@@ -78,6 +84,33 @@ class MQTTAdapter(CommunicationAdapter):
                     except Exception as e:
                         logger.error(f"Failed to resubscribe to topic {topic}: {str(e)}")
                         self.pending_subscriptions.add(topic)
+
+    def _create_tls_context(self) -> Optional[ssl.SSLContext]:
+        """Create SSL context for MQTT connection based on config"""
+        if not self.config.ssl:
+            return None
+
+        context = ssl.create_default_context()
+        
+        if hasattr(self.config, 'ca_cert') and self.config.ca_cert:
+            context.load_verify_locations(cafile=self.config.ca_cert)
+        
+        if hasattr(self.config, 'client_cert') and self.config.client_cert:
+            if not hasattr(self.config, 'client_key') or not self.config.client_key:
+                raise ValueError("Client key must be provided when using client certificate")
+            context.load_cert_chain(
+                certfile=self.config.client_cert,
+                keyfile=self.config.client_key
+            )
+        
+        if hasattr(self.config, 'tls_version'):
+            context.minimum_version = getattr(ssl.TLSVersion, self.config.tls_version.upper(), 
+                                        ssl.TLSVersion.TLSv1_2)
+        
+        if hasattr(self.config, 'verify_hostname'):
+            context.check_hostname = self.config.verify_hostname
+        
+        return context
                 
     @staticmethod
     async def message_handler(topic: str, payload: Any):
@@ -126,7 +159,7 @@ class MQTTAdapter(CommunicationAdapter):
                     password=self.config.password,
                     keepalive=self.config.keepalive,
                     identifier=f"{self.config.client_id}_{random.randint(1000, 9999)}",
-                    tls_context=True if self.config.ssl else None
+                    tls_context=self._create_tls_context() if self.config.ssl else None
                 ) as client:
                     self.client = client
                     self.connected.set()
