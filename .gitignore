@@ -5,6 +5,7 @@
 /gateway
 iot_gateway.log
 *.log.*
+*/__pycache__
 /src/iot_gateway.egg-info
 /src/*/*/__pycache__
 /src/*/*/*/__pycache__

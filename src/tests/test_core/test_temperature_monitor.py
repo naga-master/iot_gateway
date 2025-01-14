@@ -1,10 +1,9 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock
-from datetime import datetime
+from unittest.mock import AsyncMock
 from iot_gateway.core.temperature_monitor import TemperatureMonitor
 from iot_gateway.core.communication_service import CommunicationService
 from iot_gateway.core.event_manager import EventManager
-from iot_gateway.sensors.temperature import TemperatureReading
+from iot_gateway.models.things import TemperatureReading
 import pytest_asyncio
 
 @pytest.fixture
@@ -41,7 +40,8 @@ async def monitor(mock_config):
 async def test_temperature_reading_validation():
     # Test valid temperature
     valid_reading = TemperatureReading(
-        sensor_id="test",
+        device_id="test",
+        reading_id="id2",
         celsius=25.0,
         fahrenheit=77.0
     )
@@ -50,7 +50,8 @@ async def test_temperature_reading_validation():
     # Test invalid temperature
     with pytest.raises(ValueError):
         TemperatureReading(
-            sensor_id="test",
+            device_id="test",
+            reading_id="id1",
             celsius=150.0,  # Too high
             fahrenheit=302.0
         )
