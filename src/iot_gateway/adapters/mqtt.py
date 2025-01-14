@@ -2,6 +2,7 @@ import asyncio
 from typing import Dict, Any, Callable, Optional, Union, List, Set
 from pydantic import BaseModel, Field
 import aiomqtt as mqtt
+from aiomqtt import Will
 import json
 import traceback
 from ..adapters.base import CommunicationAdapter
@@ -49,13 +50,14 @@ class MQTTConfig(BaseModel):
     tls_version: Optional[str] = Field(None, description="TLS1_2, TLS1_3, etc.")
     subscribe_qos: int =  Field(0, description="qos for subscribe topics")
     publish_qos: int =  Field(0, description="qos for publish message")
+    clean_session: bool = Field(False, description="persistent sessions with clean_session=False")
 
 class MQTTMessage(BaseModel):
     """MQTT message model"""
     topic: str
     payload: Union[dict, str, bytes]
     qos: int = Field(0, ge=0, le=2)
-    retain: bool = False
+    retain: bool = True
 
 class MQTTAdapter(CommunicationAdapter):
     def __init__(self, config: Dict[str, Any]):
@@ -154,6 +156,13 @@ class MQTTAdapter(CommunicationAdapter):
         attempt = 0
         while attempt < self.config.max_reconnect_attempts and not self._stop_flag.is_set():
             try:
+                # Set up Last Will and Testament (LWT)
+                will =Will(
+                    topic=f"{self.config.client_id}/status",
+                    payload="Offline",
+                    qos=self.config.subscribe_qos, 
+                    retain=True)
+                
                 async with mqtt.Client(
                     hostname=self.config.host,
                     port=self.config.port,
@@ -161,13 +170,15 @@ class MQTTAdapter(CommunicationAdapter):
                     password=self.config.password,
                     keepalive=self.config.keepalive,
                     identifier=f"{self.config.client_id}_{random.randint(1000, 9999)}",
+                    clean_session=self.config.clean_session,
+                    will=will,
                     tls_context=self._create_tls_context() if self.config.ssl else None
                 ) as client:
                     self.client = client
                     self.connected.set()
                     logger.info("Connected to MQTT broker")
                     await self._subscribe_topics()  # Add subscription here when connection is established
-                   
+
                     try:
                         yield client
                     finally:

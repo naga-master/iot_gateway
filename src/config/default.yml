@@ -43,14 +43,15 @@ communication:
     max_reconnect_attempts: 5
     message_queue_size: 1000
     connection_timeout: 100
-    subscribe_qos: 0
-    publish_qos: 0
+    subscribe_qos: 1
+    publish_qos: 1
     ssl: false
     ca_cert: "/path/to/ca.crt"  # Optional: Custom CA certificate
     client_cert: "/path/to/client.crt"  # Optional: Client certificate
     client_key: "/path/to/client.key"  # Required if client_cert is set
     tls_version: "TLS1_2"  # Optional: TLS1_2, TLS1_3, etc.
     verify_hostname: true  # Optional: Verify broker's hostname
+    clean_session: false
     subscribe_topics:
       - devices/smart_plug/plug1/command
       - gateway/#
