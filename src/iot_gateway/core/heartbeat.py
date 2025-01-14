@@ -45,15 +45,17 @@ class SystemMonitor:
             try:
                 self.metrics = self.get_system_metrics()
 
+                # Store the metrics into db
+                await self.db.repositories['system'].store_reading(self.metrics)
+
                 try:
                     await self.mqtt.write_data({
                         "topic": f"{self.config['system']['heart_beat_topic_prefix']}/{self.device_id}",
                         "payload": self.metrics.model_dump_json(),
-                        "qos": self.mqtt.config.publish_qos
+                        "qos": self.mqtt.config.publish_qos,
+                        "retain": False
                     })
 
-                    # Store the metrics into db
-                    await self.db.repositories['system'].store_reading(self.metrics)
                 except Exception as e:
                     logger.error(f"Failed to publish reading: {traceback.format_exc()}")
 

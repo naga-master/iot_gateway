@@ -57,13 +57,14 @@ class MQTTMessage(BaseModel):
     topic: str
     payload: Union[dict, str, bytes]
     qos: int = Field(0, ge=0, le=2)
-    retain: bool = True
+    retain: bool = False
 
 class MQTTAdapter(CommunicationAdapter):
     def __init__(self, config: Dict[str, Any]):
         """Initialize MQTT adapter with configuration"""
         try:
             self.config = MQTTConfig(**config)
+            self.config.keepalive = max(30, self.config.keepalive)
         except Exception as e:
             raise CommunicationError(f"Invalid MQTT configuration: {str(e)}")
 
@@ -76,6 +77,46 @@ class MQTTAdapter(CommunicationAdapter):
         self._message_processor_task: Optional[asyncio.Task] = None
         self._message_queue: asyncio.Queue = asyncio.Queue(maxsize=self.config.message_queue_size)
         self._subscription_lock = asyncio.Lock()
+        self._connection_lock = asyncio.Lock()
+        self._publish_lock = asyncio.Lock()
+        self._publish_queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
+        self._publisher_task: Optional[asyncio.Task] = None
+
+    async def _publish_worker(self):
+        """Worker task to handle publishing messages from queue"""
+        while not self._stop_flag.is_set():
+            try:
+                message = await self._publish_queue.get()
+                attempt = 0
+                while attempt < self.config.max_reconnect_attempts and not self._stop_flag.is_set():
+                    try:
+                        async with self._publish_lock:  # Ensure only one publish operation at a time
+                            if self.client and self.connected.is_set():
+                                await self.client.publish(
+                                    topic=message.topic,
+                                    payload=message.payload,
+                                    qos=message.qos,
+                                    retain=message.retain
+                                )
+                                logger.debug(f"Published to {message.topic}")
+                                self._publish_queue.task_done()
+                                break
+                            else:
+                                raise CommunicationError("Not connected to MQTT broker")
+                    except Exception as e:
+                        attempt += 1
+                        if attempt >= self.config.max_reconnect_attempts:
+                            logger.error(f"Failed to publish message after {attempt} attempts: {str(e)}")
+                            self._publish_queue.task_done()
+                            break
+                        wait_time = min(self.config.reconnect_interval * (2 ** (attempt - 1)), 60)
+                        logger.warning(f"Publish attempt {attempt} failed, retrying in {wait_time} seconds...")
+                        await asyncio.sleep(wait_time)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in publish worker: {str(e)}")
+                await asyncio.sleep(1)
 
     async def _subscribe_topics(self) -> None:
         """Subscribe to all stored topics"""
@@ -120,36 +161,22 @@ class MQTTAdapter(CommunicationAdapter):
     async def message_handler(topic: str, payload: Any):
         print(f"Received on {topic}: {payload}")
 
-    async def publish(self, message: Union[MQTTMessage, Dict[str, Any]]) -> None:
-        """Publish message to MQTT topic"""
-        try:
-            if isinstance(message, dict):
-                message = MQTTMessage(**message)
-                
-            if not self.connected.is_set():
-                raise CommunicationError("Not connected to MQTT broker")
-                
-            payload = message.payload
-            if isinstance(payload, dict):
-                payload = json.dumps(payload)
-            elif not isinstance(payload, (str, bytes)):
-                payload = str(payload)
-                
-            if isinstance(payload, str):
-                payload = payload.encode()
-                
-            if self.client:
-                await self.client.publish(
-                    topic=message.topic,
-                    payload=payload,
-                    qos=message.qos,
-                    retain=message.retain
-                )
-                logger.debug(f"Published to {message.topic}: {message.payload}")
-                
-        except Exception as e:
-            raise CommunicationError(f"Failed to publish MQTT message: {traceback.format_exc()}")
+    async def _heartbeat(self, client: mqtt.Client):
+        """Send periodic heartbeat to keep connection alive"""
+        while not self._stop_flag.is_set():
+            try:
+                if self.connected.is_set():
+                    await client.publish(
+                        f"{self.config.client_id}/heartbeat",
+                        payload=b"ping",
+                        qos=0
+                    )
+                await asyncio.sleep(self.config.keepalive // 2)
+            except Exception as e:
+                logger.warning(f"Heartbeat failed: {str(e)}")
+                await asyncio.sleep(1)
 
+    
     @asynccontextmanager
     async def _get_client(self):
         """Context manager for MQTT client with automatic reconnection"""
@@ -176,12 +203,29 @@ class MQTTAdapter(CommunicationAdapter):
                 ) as client:
                     self.client = client
                     self.connected.set()
-                    logger.info("Connected to MQTT broker")
-                    await self._subscribe_topics()  # Add subscription here when connection is established
 
+                    # Publish online status
+                    await client.publish(
+                        f"{self.config.client_id}/status",
+                        payload="Online",
+                        qos=1,
+                        retain=True
+                    )
+                    
+                    # Start heartbeat task
+                    heartbeat_task = asyncio.create_task(self._heartbeat(client))
+                    
+                    logger.info("Connected to MQTT broker")
                     try:
+                        await self._subscribe_topics()
+                        logger.info(f"Connected to MQTT broker with client ID: {self.config.client_id}")
                         yield client
                     finally:
+                        heartbeat_task.cancel()
+                        try:
+                            await heartbeat_task
+                        except asyncio.CancelledError:
+                            pass
                         self.connected.clear()
                         self.client = None
                         logger.info("Disconnected from MQTT broker")
@@ -193,7 +237,10 @@ class MQTTAdapter(CommunicationAdapter):
                 if attempt >= self.config.max_reconnect_attempts:
                     raise CommunicationError(f"Failed to connect to MQTT broker after {attempt} attempts")
                 
-                await asyncio.sleep(self.config.reconnect_interval)
+                # Exponential backoff for reconnection attempts
+                wait_time = min(self.config.reconnect_interval * (2 ** (attempt - 1)), 60)
+                logger.info(f"MQTT Retry will happen after {wait_time} seconds")
+                await asyncio.sleep(wait_time)
 
 
     async def _process_messages(self) -> None:
@@ -224,6 +271,8 @@ class MQTTAdapter(CommunicationAdapter):
                         except Exception as e:
                             logger.error(f"Error processing message on topic {topic}: {str(e)}")
 
+            except asyncio.CancelledError:
+                break
             except Exception as e:
                 if not self._stop_flag.is_set():
                     logger.error(f"Error in message processing loop: {str(e)}")
@@ -252,6 +301,7 @@ class MQTTAdapter(CommunicationAdapter):
         try:
             self._stop_flag.clear()
             self._message_processor_task = asyncio.create_task(self._process_messages())
+            self._publisher_task = asyncio.create_task(self._publish_worker())
             asyncio.create_task(self._process_message_queue())
         except Exception as e:
             raise CommunicationError(f"Failed to start MQTT adapter: {str(e)}")
@@ -262,7 +312,7 @@ class MQTTAdapter(CommunicationAdapter):
             self._stop_flag.set()
             
             # Cancel all running tasks
-            tasks = [self._message_processor_task]
+            tasks = [self._message_processor_task, self._publisher_task]
             if self._reconnect_task:
                 tasks.append(self._reconnect_task)
             
@@ -277,7 +327,10 @@ class MQTTAdapter(CommunicationAdapter):
             # Clear state
             self.connected.clear()
             self.pending_subscriptions.clear()
-            await self._message_queue.join()  # Wait for queued messages to be processed
+
+            # Wait for all queued messages to be processed
+            await self._message_queue.join()
+            await self._publish_queue.join()
             
             logger.info("MQTT adapter stopped")
         except Exception as e:
@@ -320,13 +373,10 @@ class MQTTAdapter(CommunicationAdapter):
             raise CommunicationError(f"Failed to unsubscribe from topic {topic}: {traceback.format_exc()}")
 
     async def publish(self, message: Union[MQTTMessage, Dict[str, Any]]) -> None:
-        """Publish message to MQTT topic with retry logic"""
+        """Queue message for publishing"""
         try:
             if isinstance(message, dict):
                 message = MQTTMessage(**message)
-
-            if not self.connected.is_set():
-                raise CommunicationError("Not connected to MQTT broker")
 
             payload = message.payload
             if isinstance(payload, dict):
@@ -337,28 +387,24 @@ class MQTTAdapter(CommunicationAdapter):
             if isinstance(payload, str):
                 payload = payload.encode()
 
-            attempt = 0
-            while attempt < self.config.max_reconnect_attempts:
-                try:
-                    if self.client:
-                        await self.client.publish(
-                            topic=message.topic,
-                            payload=payload,
-                            qos=message.qos,
-                            retain=message.retain
-                        )
-                        logger.debug(f"Published to {message.topic}")
-                        return
-                except Exception as e:
-                    attempt += 1
-                    if attempt >= self.config.max_reconnect_attempts:
-                        raise
-                    logger.warning(f"Publish attempt {attempt} failed, retrying...")
-                    await asyncio.sleep(self.config.reconnect_interval)
+            # Create new message with encoded payload
+            queued_message = MQTTMessage(
+                topic=message.topic,
+                payload=payload,
+                qos=message.qos,
+                retain=message.retain
+            )
+
+            try:
+                await self._publish_queue.put(queued_message)
+                logger.debug(f"Queued message for topic: {message.topic}")
+            except asyncio.QueueFull:
+                logger.error("Publish queue full, dropping message")
+                raise CommunicationError("Publish queue full")
 
         except Exception as e:
-            raise CommunicationError(f"Failed to publish MQTT message: {str(e)}")
-        
+            raise CommunicationError(f"Failed to queue MQTT message: {str(e)}")
+                
     async def write_data(self, data: Dict[str, Any]) -> None:
         """Write data to MQTT (alias for publish)"""
         await self.publish(data)

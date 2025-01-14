@@ -104,6 +104,9 @@ class TemperatureMonitor:
                         **data
                     )
                     logger.info(reading)
+
+                    # Store reading
+                    await self.db.repositories['temperature'].store_reading(reading)
                     
                     if self.mqtt.connected.is_set():
                         # Publish reading
@@ -111,15 +114,11 @@ class TemperatureMonitor:
                             await self.mqtt.write_data({
                                 "topic": f"temperature/{reading.device_id}",
                                 "payload": reading.model_dump_json(),
-                                "qos": self.mqtt.config.publish_qos
+                                "qos": self.mqtt.config.publish_qos,
+                                "retain": False
                             })
-                            # reading.is_synced = True
                         except Exception as e:
                             logger.error(f"Failed to publish reading: {traceback.format_exc()}")
-
-                    # Store reading
-                    await self.db.repositories['temperature'].store_reading(reading)
-                    # await self.storage.store_reading(reading)
 
                 await asyncio.sleep(self.config['sensors']['temperature']['reading_interval'])
             except Exception as e:
