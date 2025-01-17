@@ -1,0 +1,14 @@
+<div>
+    <div>
+        <div class="text-gray-600 text-sm">Network Name</div>
+        <div class="font-medium">{{ wifi_info.ssid if wifi_info.ssid else 'Not Connected' }}</div>
+    </div>
+    <div>
+        <div class="text-gray-600 text-sm">Signal Strength</div>
+        <div class="font-medium">{{ wifi_info.signal_strength if wifi_info.signal_strength else 'N/A' }}</div>
+    </div>
+    <div>
+        <div class="text-gray-600 text-sm">IP Address</div>
+        <div class="font-medium">{{ wifi_info.ip_address if wifi_info.ip_address else 'N/A' }}</div>
+    </div>
+</div>

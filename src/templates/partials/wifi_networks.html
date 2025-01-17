@@ -1,0 +1,23 @@
+{% for network in networks %}
+<div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
+     onclick="selectNetwork('{{ network.ssid }}', '{{ network.encrypted|tojson }}')">
+    <div class="flex items-center space-x-4">
+        <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                  d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0"/>
+        </svg>
+        <div>
+            <div class="font-medium">{{ network.ssid }}</div>
+            <div class="text-sm text-gray-500">
+                Signal: {{ network.signal_strength }}
+                {% if network.encrypted %}
+                • Secured
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+    </svg>
+</div>
+{% endfor %}

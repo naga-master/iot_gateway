@@ -8,7 +8,11 @@ from typing import Dict, Any, Optional
 from fastapi import FastAPI
 from hypercorn.asyncio import serve
 from hypercorn.config import Config as HyperConfig
+from fastapi.staticfiles import StaticFiles
 import traceback
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
+from fastapi import Request
 
 from iot_gateway.core.event_manager import EventManager
 from iot_gateway.core.device_manager import DeviceManager
@@ -18,6 +22,7 @@ from iot_gateway.adapters.gpio import GPIOAdapter
 from iot_gateway.core.communication_service import CommunicationService
 from iot_gateway.api.routes import temp_router
 from iot_gateway.api.endpoints.devices import device_router
+from iot_gateway.api.endpoints.ui_config import ui_config_router
 from iot_gateway.utils.logging import setup_logging, get_logger
 from iot_gateway.utils.exceptions import ConfigurationError, InitializationError
 from iot_gateway.storage.sensor_database import SensorDatabase
@@ -65,6 +70,7 @@ class APIServer:
         self.logger = get_logger("API Server")
         self.app: Optional[FastAPI] = None
         self.app_state = app_state
+        self.templates: Optional[Jinja2Templates] = None
 
     async def initialize(self) -> FastAPI:
         """Initialize FastAPI application with routes"""
@@ -74,6 +80,12 @@ class APIServer:
                 description="IoT Gateway service managing sensors and communication",
                 version="1.0.0"
             )
+
+            # Initialize templates
+            self.templates = Jinja2Templates(directory="src/templates")
+
+            # Serve static files
+            self.app.mount("/static", StaticFiles(directory="src/static"), name="static")
             
             # Store app state for dependency injection
             self.app.state.components = self.app_state
@@ -81,6 +93,7 @@ class APIServer:
             # Register routes
             self.app.include_router(temp_router, prefix="/api/v1")
             self.app.include_router(device_router, prefix="/api/v1")
+            self.app.include_router(ui_config_router, prefix="")
             
             return self.app
         except Exception as e:

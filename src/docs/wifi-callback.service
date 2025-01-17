@@ -1,0 +1,13 @@
+## /etc/systemd/system/wifi-fallback.service
+
+[Unit]
+Description=WiFi Fallback Service
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/wifi-fallback.sh
+Type=oneshot
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

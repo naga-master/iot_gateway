@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}IoT Gateway Dashboard{% endblock %}
+
+{% block content %}
+<h1 class="text-4xl font-bold mb-8">IoT Gateway Dashboard</h1>
+
+<!-- Navigation Tabs -->
+<div class="flex space-x-4 mb-8">
+    <button class="flex items-center space-x-2 bg-gray-900 text-white px-6 py-3 rounded-lg tab-button" onclick="showTab('status')" >
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M23 6l-9.5 9.5-5-5L1 18" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Status</span>
+    </button>
+    
+    <button class="flex items-center space-x-2 bg-white px-6 py-3 rounded-lg hover:bg-gray-50 tab-button" onclick="showTab('config')" >
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Configuration</span>
+    </button>
+    
+    <button class="flex items-center space-x-2 bg-white px-6 py-3 rounded-lg hover:bg-gray-50 tab-button" onclick="showTab('logs')">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M4 6h16M4 12h16M4 18h16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Logs</span>
+    </button>
+</div>
+
+<!-- Tab Contents -->
+<div id="status-tab" class="tab-content">
+    <!-- Device Status Card -->
+    <div class="bg-white rounded-2xl p-8 mb-6 shadow-sm">
+        <div class="flex items-center space-x-2 mb-8">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M23 6l-9.5 9.5-5-5L1 18" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <h2 class="text-2xl font-bold">Device Status</h2>
+        </div>
+
+        <div class="grid grid-cols-2 gap-8" hx-get="/api/system-info" hx-trigger="load, every 100s" hx-swap="innerHTML">
+            <div>
+                <div class="text-gray-600 mb-1">Current Version</div>
+                <div class="text-2xl font-bold">{{ system_info.version }}</div>
+            </div>
+            
+            <div>
+                <div class="text-gray-600 mb-1">Last Update</div>
+                <div class="text-2xl">{{ system_info.last_update }}</div>
+            </div>
+            
+            <div>
+                <div class="text-gray-600 mb-1">Uptime</div>
+                <div class="text-2xl font-bold">{{ system_info.uptime }}</div>
+            </div>
+            
+            <div>
+                <div class="text-gray-600 mb-1">Status</div>
+                <div class="inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                    {{ system_info.status }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Metrics Card -->
+    <div class="bg-white rounded-2xl p-8 shadow-sm">
+        <h2 class="text-2xl font-bold mb-8">System Metrics</h2>
+        
+        <div class="grid grid-cols-2 gap-8" hx-get="/api/system-info" hx-trigger="load, every 100s" hx-swap="innerHTML">
+            <div>
+                <div class="text-gray-600 mb-1">CPU Usage</div>
+                <div class="text-2xl font-bold">{{ system_info.cpu_usage }}%</div>
+            </div>
+            
+            <div>
+                <div class="text-gray-600 mb-1">Memory Usage</div>
+                <div class="text-2xl font-bold">{{ system_info.memory_usage }}%</div>
+            </div>
+            
+            <div>
+                <div class="text-gray-600 mb-1">Temperature</div>
+                <div class="text-2xl font-bold">{{ system_info.temperature }}°C</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="config-tab" class="tab-content hidden">
+    {% include 'partials/wifi_config.html' %}
+</div>
+
+<div id="logs-tab" class="tab-content hidden" hx-get="/api/logs" hx-trigger="revealed">
+    <div class="bg-white rounded-2xl p-8 shadow-sm">
+        <div class="flex items-center space-x-2 mb-8">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M4 6h16M4 12h16M4 18h16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <h2 class="text-2xl font-bold">System Logs</h2>
+        </div>
+        <div id="logsContent" hx-get="/api/logs" hx-trigger="every 5s">
+            <!-- Logs will be loaded here -->
+            <div class="text-center text-gray-500">Loading logs...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showTab(tabName) {
+        // Hide all tabs
+        document.querySelectorAll('.tab-content').forEach(tab => {
+            tab.classList.add('hidden');
+        });
+        
+        // Show selected tab
+        const selectedTab = document.getElementById(`${tabName}-tab`);
+        selectedTab.classList.remove('hidden');
+        
+        // Update tab button styles
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.classList.remove('bg-gray-900', 'text-white');
+            button.classList.add('bg-white', 'hover:bg-gray-50');
+        });
+        
+        // Update active tab button
+        event.currentTarget.classList.remove('bg-white', 'hover:bg-gray-50');
+        event.currentTarget.classList.add('bg-gray-900', 'text-white');
+
+        // Trigger HTMX load for logs tab when it becomes visible
+        if (tabName === 'logs') {
+            console.log('Logs tab selected, triggering HTMX');
+            const logsTab = document.getElementById('logs-tab');
+            htmx.process(logsTab); // This triggers the HTMX loading
+        }
+    }
+
+    // Show status tab by default
+    document.addEventListener('DOMContentLoaded', function() {
+        showTab('status');
+    });
+</script>
+{% endblock %}

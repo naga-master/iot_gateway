@@ -1,0 +1,63 @@
+<div class="bg-white rounded-2xl p-8 shadow-sm">
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center space-x-2">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M4 6h16M4 12h16M4 18h16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <h2 class="text-2xl font-bold">System Logs</h2>
+        </div>
+        <div class="text-sm text-gray-500">
+            Last updated: {{ last_updated }}
+        </div>
+    </div>
+
+    <div class="relative">
+        <div class="absolute right-2 top-2 space-x-2">
+            <button onclick="copyLogs()" class="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-md">
+                Copy
+            </button>
+            <button onclick="clearLogs()" class="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-md">
+                Clear
+            </button>
+        </div>
+        
+        <div id="logsContainer" class="h-[600px] overflow-y-auto font-mono text-sm bg-gray-50 p-4 rounded-lg">
+            {% for log in logs %}
+                <div class="py-1 border-b border-gray-200 last:border-0">
+                    {% if 'ERROR' in log %}
+                        <span class="text-red-600">{{ log }}</span>
+                    {% elif 'WARNING' in log %}
+                        <span class="text-yellow-600">{{ log }}</span>
+                    {% elif 'INFO' in log %}
+                        <span class="text-blue-600">{{ log }}</span>
+                    {% else %}
+                        <span>{{ log }}</span>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+    function copyLogs() {
+        const logsText = Array.from(document.querySelectorAll('#logsContainer div'))
+            .map(div => div.textContent.trim())
+            .join('\n');
+        
+        navigator.clipboard.writeText(logsText).then(() => {
+            alert('Logs copied to clipboard!');
+        });
+    }
+
+    function clearLogs() {
+        const container = document.getElementById('logsContainer');
+        container.innerHTML = '';
+    }
+
+    // Scroll to bottom when new logs are loaded
+    document.addEventListener('htmx:afterSwap', function() {
+        const container = document.getElementById('logsContainer');
+        container.scrollTop = container.scrollHeight;
+    });
+</script>
