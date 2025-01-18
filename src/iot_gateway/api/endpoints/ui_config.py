@@ -11,6 +11,7 @@ import os
 import zipfile
 import io
 import re
+import signal
 from ...utils.wifi_manager import WiFiManager
 
 
@@ -304,4 +305,59 @@ async def download_logs():
         )
     except Exception as e:
         logger.error(f"Error creating log zip file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+@ui_config_router.post("/api/restart-app")
+async def restart_application():
+    """Restart the FastAPI application"""
+    try:
+        # Find the current process
+        current_pid = os.getpid()
+        
+        # Find any other FastAPI processes
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                # Check if it's a Python process running our app
+                if proc.info['name'] == 'python' and proc.pid != current_pid:
+                    cmdline = proc.info['cmdline']
+                    if cmdline and any('main.py' in arg for arg in cmdline):
+                        # Kill the old process
+                        os.kill(proc.pid, signal.SIGTERM)
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+
+        # Start the new process
+        # subprocess.Popen(["python3", "main.py"], 
+        subprocess.Popen(["/Users/ns632@apac.comcast.com/Documents/iot_gateway/iot_gateway/.venv/bin/python", 
+                          "/Users/ns632@apac.comcast.com/Documents/iot_gateway/iot_gateway/src/main.py"], 
+                        start_new_session=True,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL)
+        
+        # Exit current process
+        os.kill(current_pid, signal.SIGTERM)
+        
+        return {"message": "Application restart initiated"}
+    except Exception as e:
+        logger.error(f"Error restarting application: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@ui_config_router.post("/api/restart-device")
+async def restart_device():
+    """Restart the Raspberry Pi"""
+    try:
+        # Check if running on Linux (Raspberry Pi)
+        if os.name != 'posix':
+            raise HTTPException(status_code=400, detail="This endpoint only works on Linux systems")
+            
+        # Execute the reboot command
+        subprocess.run(['sudo', 'reboot'], check=True)
+        
+        return {"message": "Device restart initiated"}
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error restarting device: {e}")
+        raise HTTPException(status_code=500, detail="Failed to restart device. Make sure the application has sudo privileges.")
+    except Exception as e:
+        logger.error(f"Error restarting device: {e}")
         raise HTTPException(status_code=500, detail=str(e))
