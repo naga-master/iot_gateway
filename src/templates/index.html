@@ -3,7 +3,6 @@
 {% block title %}IoT Gateway Dashboard{% endblock %}
 
 {% block head %}
-<!-- Update the CSS reference to use url_for -->
 <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
 <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='/favicon.ico') }}">
 {% endblock %}
@@ -13,21 +12,21 @@
 
 <!-- Navigation Tabs -->
 <div class="flex space-x-4 mb-8">
-    <button class="flex items-center space-x-2 bg-gray-900 text-white px-6 py-3 rounded-lg tab-button" onclick="showTab('status')" >
+    <button class="flex items-center space-x-2 bg-gray-900 text-white px-6 py-3 rounded-lg border border-gray-250 tab-button" id="status-button">
         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M23 6l-9.5 9.5-5-5L1 18" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <span>Status</span>
     </button>
     
-    <button class="flex items-center space-x-2 bg-white px-6 py-3 rounded-lg hover:bg-gray-50 tab-button" onclick="showTab('config')" >
+    <button class="flex items-center space-x-2 bg-white px-6 py-3 rounded-lg hover:bg-gray-900 hover:text-white border border-gray-250 tab-button" id="config-button">
         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <span>Configuration</span>
     </button>
     
-    <button class="flex items-center space-x-2 bg-white px-6 py-3 rounded-lg hover:bg-gray-50 tab-button" onclick="showTab('logs')">
+    <button class="flex items-center space-x-2 bg-white px-6 py-3 rounded-lg hover:bg-gray-900 hover:text-white border border-gray-250 tab-button" id="logs-button">
         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M4 6h16M4 12h16M4 18h16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
@@ -38,7 +37,7 @@
 <!-- Tab Contents -->
 <div id="status-tab" class="tab-content">
     <!-- Device Status Card -->
-    <div class="bg-white rounded-2xl p-8 mb-6 shadow-sm">
+    <div class="bg-white rounded-2xl p-8 mb-6 shadow-md border border-gray-250">
         <div class="flex items-center space-x-2 mb-8">
             <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path d="M23 6l-9.5 9.5-5-5L1 18" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -68,11 +67,12 @@
             </div>
         </div>
 
-        <!-- Add this after the grid in the Device Status Card -->
+        <!-- Restart Buttons -->
         <div class="mt-8 flex space-x-4">
             <button 
                 onclick="restartApp()" 
-                class="flex items-center space-x-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2">
+                class="flex items-center space-x-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+            >
                 <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
                           stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -82,7 +82,8 @@
             
             <button 
                 onclick="restartDevice()" 
-                class="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
+                class="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+            >
                 <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <path d="M5.636 5.636a9 9 0 1012.728 0M12 3v9" 
                           stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -93,7 +94,7 @@
     </div>
 
     <!-- System Metrics Card -->
-    <div class="bg-white rounded-2xl p-8 shadow-sm">
+    <div class="bg-white rounded-2xl p-8 shadow-md border border-gray-250">
         <h2 class="text-2xl font-bold mb-8">System Metrics</h2>
         
         <div class="grid grid-cols-2 gap-8" hx-get="/api/system-info" hx-trigger="load, every 5s" hx-swap="none">
@@ -120,7 +121,7 @@
 </div>
 
 <div id="logs-tab" class="tab-content hidden" hx-get="/api/logs" hx-trigger="revealed">
-    <div class="bg-white rounded-2xl p-8 shadow-sm">
+    <div class="bg-white rounded-2xl p-8 shadow-md border border-gray-100">
         <div class="flex items-center space-x-2 mb-8">
             <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path d="M4 6h16M4 12h16M4 18h16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -135,137 +136,122 @@
 </div>
 
 <script>
-    // Wait for DOM to be ready
-    document.addEventListener('DOMContentLoaded', function() {
-        // Handle system info updates
-        htmx.on('htmx:afterRequest', function(evt) {
-            if (evt.detail.pathInfo.requestPath === '/api/system-info') {
-                try {
-                    const data = JSON.parse(evt.detail.xhr.response);
-                    
-                    // Check if elements exist before updating
-                    const updateElement = (id, value) => {
-                        const element = document.getElementById(id);
-                        if (element) {
-                            element.textContent = value;
-                        }
-                    };
-                    
-                    // Update device status
-                    updateElement('version', data.version);
-                    updateElement('last_update', data.last_update);
-                    updateElement('uptime', data.uptime);
-                    updateElement('status', data.status);
-                    
-                    // Update system metrics
-                    updateElement('cpu_usage', data.cpu_usage + '%');
-                    updateElement('memory_usage', data.memory_usage + '%');
-                    updateElement('temperature', data.temperature + '°C');
-                } catch (error) {
-                    console.error('Error updating system info:', error);
-                }
-            }
-        });
-        // Show status tab by default
-        showTab('status');
+// Add click event listeners to buttons
+document.getElementById('status-button').addEventListener('click', () => showTab('status'));
+document.getElementById('config-button').addEventListener('click', () => showTab('config'));
+document.getElementById('logs-button').addEventListener('click', () => showTab('logs'));
+
+function showTab(tabName) {
+    // Hide all tabs
+    document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.add('hidden');
     });
-
-
-    // Handle error cases
-    htmx.on('htmx:error', function(evt) {
-        if (evt.detail.pathInfo.requestPath === '/api/system-info') {
-            console.error('Error fetching system info:', evt.detail.error);
-            // Optionally display error message to user
-        }
-    });
-
-    function showTab(tabName) {
-        // Hide all tabs
-        document.querySelectorAll('.tab-content')?.forEach(tab => {
-                tab?.classList.add('hidden');
-            });
-        
-        // Show selected tab
-        const selectedTab = document.getElementById(`${tabName}-tab`);
-        selectedTab.classList.remove('hidden');
-        
-        // Update tab button styles
-        document.querySelectorAll('.tab-button')?.forEach(button => {
-                button?.classList.remove('bg-gray-900', 'text-white');
-                button?.classList.add('bg-white', 'hover:bg-gray-50');
-            });
-
-        if (event?.currentTarget) {
-            event.currentTarget.classList.remove('bg-white', 'hover:bg-gray-50');
-            event.currentTarget.classList.add('bg-gray-900', 'text-white');
-        }
-        
-        // Update active tab button
-        event.currentTarget.classList.remove('bg-white', 'hover:bg-gray-50');
-        event.currentTarget.classList.add('bg-gray-900', 'text-white');
-
-        // Trigger HTMX load for logs tab when it becomes visible
-        if (tabName === 'logs') {
-            console.log('Logs tab selected, triggering HTMX');
-            const logsTab = document.getElementById('logs-tab');
-            htmx.process(logsTab);
-        }
-    }
-
-        async function restartApp() {
-        if (!confirm('Are you sure you want to restart the application?')) {
-            return;
-        }
-        
-        try {
-            const response = await fetch('/api/restart-app', {
-                method: 'POST',
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to restart application');
-            }
-            
-            // Show message to user
-            alert('Application restart initiated. Please wait a moment...');
-            
-            // Wait a few seconds then reload the page
-            setTimeout(() => {
-                window.location.reload();
-            }, 10000);
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Failed to restart application: ' + error.message);
-        }
-    }
-
-    async function restartDevice() {
-        if (!confirm('Are you sure you want to restart the device? This will cause a few minutes of downtime.')) {
-            return;
-        }
-        
-        try {
-            const response = await fetch('/api/restart-device', {
-                method: 'POST',
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to restart device');
-            }
-            
-            // Show message to user
-            alert('Device restart initiated. Please wait a few minutes before reconnecting...');
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Failed to restart device: ' + error.message);
-        }
-    }
-
-    // Show status tab by default
-    document.addEventListener('DOMContentLoaded', function() {
-        showTab('status');
-
     
+    // Show selected tab
+    const selectedTab = document.getElementById(`${tabName}-tab`);
+    selectedTab.classList.remove('hidden');
+    
+    // Update tab button styles
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.classList.remove('bg-gray-900', 'text-white');
+        button.classList.add('bg-white', 'hover:bg-gray-900', 'hover:text-white');
     });
+    
+    // Update active tab button
+    const activeButton = document.getElementById(`${tabName}-button`);
+    activeButton.classList.remove('bg-white', 'hover:bg-gray-900', 'hover:text-white');
+    activeButton.classList.add('bg-gray-900', 'text-white');
+
+    // Trigger HTMX load for logs tab when it becomes visible
+    if (tabName === 'logs') {
+        const logsTab = document.getElementById('logs-tab');
+        htmx.process(logsTab);
+    }
+}
+
+// Wait for DOM to be ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Show status tab by default
+    showTab('status');
+    
+    // Handle system info updates
+    htmx.on('htmx:afterRequest', function(evt) {
+        if (evt.detail.pathInfo.requestPath === '/api/system-info') {
+            try {
+                const data = JSON.parse(evt.detail.xhr.response);
+                
+                // Check if elements exist before updating
+                const updateElement = (id, value) => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        element.textContent = value;
+                    }
+                };
+                
+                // Update device status
+                updateElement('version', data.version);
+                updateElement('last_update', data.last_update);
+                updateElement('uptime', data.uptime);
+                updateElement('status', data.status);
+                
+                // Update system metrics
+                updateElement('cpu_usage', data.cpu_usage + '%');
+                updateElement('memory_usage', data.memory_usage + '%');
+                updateElement('temperature', data.temperature + '°C');
+            } catch (error) {
+                console.error('Error updating system info:', error);
+            }
+        }
+    });
+});
+
+async function restartApp() {
+    if (!confirm('Are you sure you want to restart the application?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/restart-app', {
+            method: 'POST',
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to restart application');
+        }
+        
+        // Show message to user
+        alert('Application restart initiated. Please wait a moment...');
+        
+        // Wait a few seconds then reload the page
+        setTimeout(() => {
+            window.location.reload();
+        }, 5000);
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to restart application: ' + error.message);
+    }
+}
+
+async function restartDevice() {
+    if (!confirm('Are you sure you want to restart the device? This will cause a few minutes of downtime.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/restart-device', {
+            method: 'POST',
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to restart device');
+        }
+        
+        // Show message to user
+        alert('Device restart initiated. Please wait a few minutes before reconnecting...');
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to restart device: ' + error.message);
+    }
+}
 </script>
 {% endblock %}
