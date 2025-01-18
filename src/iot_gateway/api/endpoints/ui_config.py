@@ -56,8 +56,13 @@ async def get_cpu_usage():
 
 # Need to fix it throws 500 error in inspect element for every 5s
 @ui_config_router.get("/api/system-info")
-async def sys_info(request: Request):
-    return {"request": request,"system_info": get_system_info()}
+async def sys_info():
+    """Return only the system information"""
+    try:
+        return get_system_info()
+    except Exception as e:
+        logger.error(f"Error getting system info: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
         
 
 def get_system_info():
