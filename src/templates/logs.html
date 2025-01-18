@@ -1,18 +1,16 @@
 <div class="bg-white rounded-2xl p-8 shadow-md border border-gray-250">
     <div class="flex items-center justify-between mb-6">
         <div class="flex items-center space-x-2">
-            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path d="M4 6h16M4 12h16M4 18h16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m4 17 6-6-6-6"/>
+                <path d="M12 19h8"/>
             </svg>
             <h2 class="text-2xl font-bold">System Logs</h2>
+            
         </div>
-        <div class="text-sm text-gray-500">
-            Last updated: {{ last_updated }}
-        </div>
-    </div>
-
-    <div class="relative">
-        <div class="absolute right-2 top-2 space-x-2">
+        
+        <div class="right-2 space-x-2">
+            <!-- Last updated: {{ last_updated }} -->
             <button onclick="downloadLogs()" class="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-900 hover:text-white rounded-md border border-gray-250">
                 Download
             </button>
@@ -23,7 +21,9 @@
                 Clear
             </button>
         </div>
-        
+    </div>
+
+    <div class="relative">
         <div id="logsContainer" class="h-[600px] overflow-y-auto font-mono text-sm bg-gray-50 p-4 rounded-lg">
             {% for log in logs %}
                 <div class="py-1 border-b border-gray-200 last:border-0">
