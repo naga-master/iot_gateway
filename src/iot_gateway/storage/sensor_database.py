@@ -16,12 +16,15 @@ class SensorDatabase:
     def __init__(self, db_path: str, max_connections: int = 5, retention_days: int = 30):
         self.pool = ConnectionPool(db_path, max_connections)
         self.repositories = {}
-        self.sync_manager = SyncManager(self)
         self._setup_repositories()
+        
         # Add other repositories as needed
         self.retention_days = retention_days
         self._cleanup_task = None
         self._cleanup_running = False
+
+        # sync manager instance should be created after loading the repositories
+        self.sync_manager = SyncManager(self)
 
     def _setup_repositories(self):
         """Initialize all repository instances"""

@@ -130,47 +130,59 @@ class TemperatureMonitor:
             logger.info("Periodic Sync is disabled")
             return False
         
+        next_sync_interval = self.config['sync']["interval"]
+        
         while self.is_running:
             try:
-                # Get unsynced readings
-                await self.sync_temperature_readings()
+                unsynced = await self.db.sync_manager.get_all_unsynced_readings()
+                unsynced_temp_data = unsynced.get('temperature')
+
+                if unsynced_temp_data:
+                    logger.info(f"Sending {len(unsynced_temp_data)} stored unsynced readings")
+                    if len(unsynced_temp_data) > next_sync_interval:
+
+                        # assuming one second will take for a full round trip syncing from mqtt to db
+                        # so increasing the sync interval based on the len of unsynced data
+                        next_sync_interval = len(unsynced_temp_data) + 10
+                    else:
+                         next_sync_interval = self.config['sync']["interval"] # reset to default sync interval
+
+                    # Get unsynced readings
+                    await self.sync_temperature_readings(unsynced_temp_data)
 
             except Exception as e:
                 logger.error(f"error in sync loop: {traceback.format_exc()}")
             
-            logger.info(f'Syncing will happen after {self.config["sync"]["interval"]} seconds')
-            await asyncio.sleep(self.config['sync']["interval"])
+            logger.info(f'Syncing will happen after {next_sync_interval} seconds')
+            await asyncio.sleep(next_sync_interval)
 
-    async def sync_temperature_readings(self, topic: str=None, device_ids:list=None):
+    async def sync_temperature_readings(self, unsynced_temp_readings:list, topic: str=None, device_ids:list=None):
         """Retrieve unsynced data and push via mqtt"""
-        unsynced = await self.db.sync_manager.get_all_unsynced_readings()
-        unsynced_temp_data = unsynced.get('temperature')
-        if unsynced_temp_data:
-            logger.info(f"Sending {len(unsynced_temp_data)} stored unsynced readings")
-            for reading in unsynced_temp_data:
-                try:
-                    if self.mqtt.connected.is_set():
-                        send_topic = f"temperature/{reading.device_id}"
-                        sensor_data = reading.model_dump_json()
+        # change the next syncing interval based on current unsynced data
+        for reading in unsynced_temp_readings:
+            try:
+                if self.mqtt.connected.is_set():
+                    send_topic = f"temperature/{reading.device_id}"
+                    sensor_data = reading.model_dump_json()
 
-                        # set resend_topic id if supplied
-                        if topic:
-                            send_topic = topic
+                    # set resend_topic id if supplied
+                    if topic:
+                        send_topic = topic
 
-                        # don't send if not specific device_id
-                        
-                        if device_ids and reading.device_id not in device_ids:
-                            continue
-                        
-                        await self.mqtt.write_data({
-                            "topic": send_topic,
-                            "payload": sensor_data,
-                            "qos": self.mqtt.config.publish_qos
-                        })
+                    # don't send if not specific device_id
+                    
+                    if device_ids and reading.device_id not in device_ids:
+                        continue
+                    
+                    await self.mqtt.write_data({
+                        "topic": send_topic,
+                        "payload": sensor_data,
+                        "qos": self.mqtt.config.publish_qos
+                    })
 
-                except Exception as e:
-                    logger.error(f"Failed to sync reading: {traceback.format_exc()}")
-                    break  # Stop if MQTT is down
+            except Exception as e:
+                logger.error(f"Failed to sync reading: {traceback.format_exc()}")
+                break  # Stop if MQTT is down
 
 
     async def handle_temperature_ack(self, topic: str, payload: Any) -> None:
@@ -187,7 +199,9 @@ class TemperatureMonitor:
             
             # Mark the reading as synced in the database
             # Mark as synced
-            await self.db.repositories['temperature'].mark_as_synced(
+            # Use sync manager to mark the reading as synced
+            await self.db.sync_manager.mark_single_as_synced(
+                repository_name='temperature',
                 device_id=sensor_id,
                 reading_id=reading_id
             )
@@ -207,6 +221,12 @@ class TemperatureMonitor:
         except Exception as e:
             logger.error(f"Error while getting unsynced temperature data: {e}")
 
+        # For monitoring failed syncs
+    async def check_failed_syncs(self):
+        failed = await self.db.sync_manager.get_failed_syncs("your_repo_name")
+        for device_id, reading_id, attempt_count in failed:
+            logger.warning(f"Sync failed {attempt_count} times for {device_id}:{reading_id}")
+    
     async def stop(self) -> None:
         self.is_running = False
         for sensor in self.sensors:

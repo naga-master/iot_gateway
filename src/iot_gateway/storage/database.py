@@ -154,6 +154,18 @@ class BaseRepository(ABC, Generic[T]):
 
         try:
             async with self.pool.acquire() as conn:
+
+                # First verify if it's already synced
+                verify_query = f"""
+                    SELECT is_synced FROM {self.table_name} 
+                    WHERE device_id = ? AND reading_id = ?
+                """
+                async with conn.execute(verify_query, (device_id, reading_id)) as cursor:
+                    row = await cursor.fetchone()
+                    if row and row[0] == 1:
+                        logger.warning(f"Reading {reading_id} was already marked as synced!")
+                        return
+
                 query = f'''
                     UPDATE {self.table_name} 
                     SET is_synced = 1 
@@ -161,6 +173,13 @@ class BaseRepository(ABC, Generic[T]):
                 '''
                 await conn.execute(query, (device_id, reading_id))
                 await conn.commit()
+
+                # Verify the update
+                async with conn.execute(verify_query, (device_id, reading_id)) as cursor:
+                    row = await cursor.fetchone()
+                    if not row or row[0] != 1:
+                        raise DatabaseError(f"Failed to verify sync status for reading {reading_id}")
+
                 logger.info(f"Marked reading {reading_id} as synced in {self.table_name}")
         except Exception as e:
             logger.error(f"Failed to mark reading as synced in {self.table_name}: {e}")

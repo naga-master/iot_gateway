@@ -16,7 +16,7 @@ sync:
   error_retry_interval: 5
   cache_size: 1000
   cache_expiry: 3600
-  periodic_sync: false
+  periodic_sync: true
   protocols:
     mqtt:
       enabled: true
