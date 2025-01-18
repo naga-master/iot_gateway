@@ -1,8 +1,0 @@
-/* app/static/css/styles.css */
-.status-badge {
-    transition: all 0.3s ease;
-}
-
-.signal-bar {
-    transition: width 0.3s ease;
-}
