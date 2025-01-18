@@ -1,14 +1,16 @@
 from fastapi import APIRouter, HTTPException, Request, Form
-from typing import Dict, Any
-from pathlib import Path
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 import psutil
 import subprocess
 import speedtest
 from ...utils.logging import get_logger
 from fastapi.templating import Jinja2Templates
 import datetime
-import time, os, json
+import time
+import os
+import zipfile
+import io
+import re
 from ...utils.wifi_manager import WiFiManager
 
 
@@ -269,3 +271,37 @@ async def get_logs(request: Request):
                 "last_updated": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
         )
+    
+@ui_config_router.get("/api/download-logs")
+async def download_logs():
+    """Zip all logs in the logs folder and send them as a download"""
+    try:
+        log_extenstion_regex = r"\.log(\.\d+)?$"
+        pattern = re.compile(log_extenstion_regex)
+        # Create a BytesIO object to store the zip file
+        zip_buffer = io.BytesIO()
+        
+        # Create a ZipFile object
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            # Walk through the logs directory
+            for root, dirs, files in os.walk("logs"):
+                for file in files:
+                    if pattern.search(file): # Only include .log files
+                        file_path = os.path.join(root, file)
+                        # Add file to zip with its relative path
+                        zip_file.write(file_path, os.path.basename(file_path))
+        
+        # Seek to the beginning of the BytesIO buffer
+        zip_buffer.seek(0)
+        
+        # Return the zip file as a downloadable response
+        return StreamingResponse(
+            zip_buffer,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f"attachment; filename=logs_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error creating log zip file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

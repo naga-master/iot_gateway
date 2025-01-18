@@ -13,6 +13,9 @@
 
     <div class="relative">
         <div class="absolute right-2 top-2 space-x-2">
+            <button onclick="downloadLogs()" class="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-md">
+                Download
+            </button>
             <button onclick="copyLogs()" class="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-md">
                 Copy
             </button>
@@ -53,6 +56,10 @@
     function clearLogs() {
         const container = document.getElementById('logsContainer');
         container.innerHTML = '';
+    }
+
+    function downloadLogs() {
+        window.location.href = '/api/download-logs';
     }
 
     // Scroll to bottom when new logs are loaded
