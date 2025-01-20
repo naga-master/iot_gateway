@@ -220,10 +220,13 @@ async def connect_wifi(request: Request, ssid: str = Form(...), password: str = 
         content={"status": "error", "message": "Failed to connect to network"}
     )
 
-@ui_config_router.get("/api/wifi/networks")
-async def get_wifi_networks():
+@ui_config_router.get("/api/wifi/networks", response_class=HTMLResponse)
+async def get_wifi_networks(request: Request):
     networks = wifi_manager.scan_networks()
-    return {"networks": networks}
+    return templates.TemplateResponse("wifi_networks_options.html", {
+        "request": request,
+        "networks": networks
+    })
 
 @ui_config_router.post("/api/wifi/connect")
 async def connect_wifi(ssid: str, password: str):
